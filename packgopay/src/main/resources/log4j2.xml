@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<comfiguration status="error">
+    <Properties>
+        <Property name="logPath">./Users/xiaoyou_02/project/YouPayServer</Property>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+        <Property name="LOG_DIR">logs</Property>
+        <Property name="LOG_FILE_NAME">test.log</Property>
+    </Properties>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <RollingFile name="RollingFile" fileName="${LOG_DIR}/${LOG_FILE_NAME}" filePattern="${LOG_DIR}/app-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="1kb"/>
+            </Policies>
+            <DefaultRolloveStrategy max="10"/>
+        </RollingFile>
+    </Appenders>
+
+    <loggers>
+        <!--<root level="trace">
+            <appender-ref ref="Console"/>
+        </root>-->
+        <logger name="RollingFile" level="INFO" additivity="false">
+            <appender-ref ref="RollingFile"/>
+        </logger>
+    </loggers>
+</comfiguration>
