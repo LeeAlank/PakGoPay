@@ -1,15 +1,3 @@
 spring:
-  application:
-    name: YouPayServer
-  rabbitmq:
-    host: 8.148.79.164
-    port: 5672
-    username: zf
-    password: zf@qwe.123
-  redis:
-    host: 8.148.79.164
-    port: 6379
-    password: zf@qwe.123
-server:
-  address: localhost
-  port: 8090
+  profiles:
+    active: dev
