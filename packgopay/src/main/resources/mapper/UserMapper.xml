@@ -6,4 +6,7 @@
     <select id="selectAllUser" resultType="com.pakgopay.entity.User">
         SELECT * FROM user
     </select>
+    <select id="getOneUser" resultType="com.pakgopay.entity.User">
+        SELECT *  FROM user where userId = #{username} and password = #{password}
+    </select>
 </mapper>

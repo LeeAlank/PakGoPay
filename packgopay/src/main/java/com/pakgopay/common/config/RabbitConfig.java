@@ -1,4 +1,4 @@
-package com.pakgopay.config;
+package com.pakgopay.common.config;
 
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;

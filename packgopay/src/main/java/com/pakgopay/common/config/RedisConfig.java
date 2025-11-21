@@ -1,4 +1,4 @@
-package com.pakgopay.config;
+package com.pakgopay.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

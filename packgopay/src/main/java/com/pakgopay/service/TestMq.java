@@ -1,4 +1,4 @@
-package com.pakgopay.server;
+package com.pakgopay.service;
 
 import com.pakgopay.entity.TestMessage;
 import com.pakgopay.thirdUtil.RabbitmqUtil;

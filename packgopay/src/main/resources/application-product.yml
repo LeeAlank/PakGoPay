@@ -10,6 +10,13 @@ spring:
     host: 8.148.79.164
     port: 6379
     password: zf@qwe.123
+  datasource:
+    url: 8.148.79.164
+    username: root
+    password: zf.qwe.123
+    driver-class-name: com.mysql.cj.jdbc.Driver
 server:
   address: localhost
   port: 8090
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
