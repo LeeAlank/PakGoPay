@@ -14,5 +14,6 @@ public class MenuItem {
     private String url;
     private String icon;
     private String roleMap;
+    private boolean showItem;
     private List<Children> children;
 }

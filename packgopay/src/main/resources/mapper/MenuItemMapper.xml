@@ -12,7 +12,7 @@
         <result column="icon" property="icon" javaType="java.lang.String"/>
         <result column="path" property="path" javaType="java.lang.String"/>
         <result column="role_map" property="roleMap" javaType="java.lang.String"/>
-
+        <result column="showItem" property="showItem" javaType="java.lang.Boolean"/>
     </resultMap>
     <select id="queryMenuItem" resultMap="menuItemMap">
         SELECT * FROM pakgopay_menu;

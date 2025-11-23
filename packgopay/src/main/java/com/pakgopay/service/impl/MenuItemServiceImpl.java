@@ -41,6 +41,7 @@ public class MenuItemServiceImpl {
            menu.setUrl(s.getUrl());
            menu.setRoleMap(s.getRoleMap());
            menu.setPath(s.getPath());
+           menu.setShowItem(s.isShowItem());
            // 组装一级菜单
            menuItem.put(s.getMenuId(), menu);
 

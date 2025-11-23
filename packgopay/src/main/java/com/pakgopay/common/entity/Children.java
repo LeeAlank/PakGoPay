@@ -12,4 +12,5 @@ public class Children {
     private String url;
     private String icon;
     private String roleMap;
+    private boolean showItem;
 }
