@@ -13,14 +13,22 @@
         SELECT * FROM user
     </select>
     <select id="getOneUser" resultType="com.pakgopay.entity.User">
-        SELECT *  FROM user where userId = #{username} and password = #{password}
+        SELECT *  FROM user where userId = #{userId} and password = #{password}
     </select>
 
     <select id="getSecretKey" resultType="com.pakgopay.entity.User">
-        SELECT secretKey , userName FROM USER WHERE userId = #{username}
+        SELECT secretKey , userName FROM USER WHERE userId = #{userId}
     </select>
     
     <update id="bingSecretKey">
-        update user set secretKey = #{secretKey} where userId = #{username}
+        update user set secretKey = #{secretKey} where userId = #{userId}
     </update>
+
+    <update id="setLastLoginTime">
+        update user set lastLoginTime = #{lastLoginTime} where userId = #{userId}
+    </update>
+
+    <select id="getOneUserByUsername" resultType="com.pakgopay.entity.User">
+        SELECT * FROM user where userId = #{userId}
+    </select>
 </mapper>

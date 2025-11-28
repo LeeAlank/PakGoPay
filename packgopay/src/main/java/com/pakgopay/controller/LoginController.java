@@ -1,5 +1,6 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.reqeust.LoginRequest;
 import com.pakgopay.common.response.CommonResponse;
 import com.pakgopay.entity.TestMessage;
@@ -7,8 +8,8 @@ import com.pakgopay.entity.User;
 import com.pakgopay.service.LoginService;
 import com.pakgopay.service.TestMq;
 import com.pakgopay.service.impl.UserService;
-import com.pakgopay.thirdUtil.GoogleUtil;
 import com.pakgopay.thirdUtil.RedisUtil;
+import com.pakgopay.service.AuthorizationService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ public class LoginController {
 
     @Autowired
     private LoginService loginService;
+
+    @Autowired
+    private AuthorizationService authorizationService;
 
 
     @RequestMapping(value = "/hello")
@@ -59,8 +63,24 @@ public class LoginController {
         return "test3";
     }
 
+    /**
+     * 此接口不需要token校验
+     * 用refreshToken刷新accessToken
+     * @param freshToken
+     * @return
+     */
+    @GetMapping("/refreshToken")
+    public CommonResponse accessTokenRefresh(@RequestParam String freshToken){
+        return loginService.refreshToken(freshToken);
+    }
+
+    /**
+     * 获取谷歌令牌绑定二维码
+     * @param userId
+     * @return
+     */
     @RequestMapping(value = "/getCode")
-    public CommonResponse verify(@RequestParam String username){
-        return loginService.getQrCode(username);
+    public CommonResponse verify(@RequestParam Integer userId){
+        return loginService.getQrCode(userId);
     }
 }

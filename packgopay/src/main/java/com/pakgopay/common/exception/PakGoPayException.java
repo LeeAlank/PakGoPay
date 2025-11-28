@@ -1,6 +1,6 @@
 package com.pakgopay.common.exception;
 
-import com.pakgopay.common.errorCode.ResultCode;
+import com.pakgopay.common.enums.ResultCode;
 
 public class PakGoPayException extends Exception{
 

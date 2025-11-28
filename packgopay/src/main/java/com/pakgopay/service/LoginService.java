@@ -7,5 +7,7 @@ public interface LoginService {
 
     public CommonResponse login(LoginRequest loginRequest);
 
-    public CommonResponse getQrCode(String username);
+    public CommonResponse getQrCode(Integer userId);
+
+    public CommonResponse refreshToken(String refreshToken);
 }

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pakgopay.common.entity.Children;
 import com.pakgopay.common.entity.MenuItem;
-import com.pakgopay.common.errorCode.ResultCode;
+import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.response.CommonResponse;
 import com.pakgopay.mapper.MenuItemMapper;
 import org.apache.logging.log4j.LogManager;

@@ -173,6 +173,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.bitbucket.b_c</groupId>
+            <artifactId>jose4j</artifactId>
+            <version>0.9.4</version>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>

@@ -2,6 +2,8 @@ package com.pakgopay.entity;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 public class User {
     private Integer userId;
@@ -9,5 +11,6 @@ public class User {
     private String userName;
     private String password;
     private String secretKey;
+    private String lastLoginTime;
 
 }

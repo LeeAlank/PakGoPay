@@ -1,4 +1,4 @@
-package com.pakgopay.common.errorCode;
+package com.pakgopay.common.enums;
 
 public enum ResultCode {
     SUCCESS(0, "success"),
@@ -8,7 +8,9 @@ public enum ResultCode {
     USER_IS_NOT_EXIST(1004, "user is not exist"),
     INTERNAL_SERVER_ERROR(1005, "Internal Server Error"),
     BIND_SECRET_KEY_FAIL(1006, "bind secret key fail"),
-    CODE_IS_EXPIRE(1007, "code is expire");
+    CODE_IS_EXPIRE(1007, "code is expire"),
+    REFRESH_TOKEN_EXPIRE(1008, "refresh token expire"),
+    USER_PASSWORD_ERROR(1009, "user password error");
 
     private final Integer code;
     private final String message;

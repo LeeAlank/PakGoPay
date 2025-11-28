@@ -8,13 +8,17 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import org.jose4j.jwk.JsonWebKey;
+import org.jose4j.jwk.RsaJsonWebKey;
+import org.jose4j.jwk.RsaJwkGenerator;
+import org.jose4j.jws.AlgorithmIdentifiers;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
 
 public class TokenUtils {
-    private static final String SECRET_KEY = "wKkFKKTPpWtDq9C7cDqN8d7833T6C1xG6y9Z36ypv/lXK0cH0epj2zwaIgOGzlCdT7+ZY2GoCQWouHgDtfxPIkDxPDIVEwgqOq7yXiSLUvANubPW4tTG9MtSEskiUqEdT2YtWDTpYy8kjxSjx9L9fJ1fHq4MHwWspwvENoTyC8Q=";
+    /*private static final String SECRET_KEY = "wKkFKKTPpWtDq9C7cDqN8d7833T6C1xG6y9Z36ypv/lXK0cH0epj2zwaIgOGzlCdT7+ZY2GoCQWouHgDtfxPIkDxPDIVEwgqOq7yXiSLUvANubPW4tTG9MtSEskiUqEdT2YtWDTpYy8kjxSjx9L9fJ1fHq4MHwWspwvENoTyC8Q=";
     private static final long EXPIRATION_TIME = 1800000;
     private static final String TOKEN_PREFIX = "Bearer ";
 
@@ -60,5 +64,26 @@ public class TokenUtils {
                 .withExpiresAt(instance.getTime())
                 .sign(algorithm);
     }
+
+    public static void createKeyPair() {
+        String keyId = UUID.randomUUID().toString().replaceAll("-", "");
+        RsaJsonWebKey jwk = null;
+        try{
+            jwk = RsaJwkGenerator.generateJwk(2048);
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+        jwk.setKeyId(keyId);
+        jwk.setAlgorithm(AlgorithmIdentifiers.ECDSA_USING_P256_CURVE_AND_SHA256);
+        String publicKey = jwk.toJson(JsonWebKey.OutputControlLevel.PUBLIC_ONLY);
+        String privateKey = jwk.toJson(JsonWebKey.OutputControlLevel.INCLUDE_PRIVATE);
+        System.out.println("keyId: " + keyId);
+        System.out.println("publicKey: " + publicKey);
+        System.out.println("privateKey: " + privateKey);
+    }
+
+    public static void main(String[] args) {
+        TokenUtils.createKeyPair();
+    }*/
 
 }

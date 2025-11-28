@@ -1,6 +1,6 @@
 package com.pakgopay.common.response;
 
-import com.pakgopay.common.errorCode.ResultCode;
+import com.pakgopay.common.enums.ResultCode;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -10,6 +10,8 @@ public class CommonResponse implements Serializable {
     private Integer code;
     private String message;
     private String data;
+
+    public CommonResponse() {}
 
     public CommonResponse(Integer code, String message, String data) {
         this.code = code;
@@ -32,6 +34,7 @@ public class CommonResponse implements Serializable {
     public static CommonResponse success(String data) {
         return new CommonResponse(ResultCode.SUCCESS.getCode(), ResultCode.SUCCESS.getMessage(), data);
     }
+
     public static CommonResponse fail(ResultCode resultCode) {
         return new CommonResponse(resultCode);
     }
