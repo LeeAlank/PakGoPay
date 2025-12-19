@@ -25,7 +25,7 @@ public class RabbitmqUtil {
         map.put("x-delay", 5000);
         // 延时队列原理：接收消息永远都是某一个topic 。当需要进入延时队列时，通过指定routingKey 将消息放入延时交换机中，延时交换机配置了x-message-delay
         // 可通过头部添加x-delay指定延时时间
-        rabbitTemplate.convertAndSend("test-delay","delay-L5s",message, message1 -> {
+        rabbitTemplate.convertAndSend("test-delay-L10S","test-delay-L10S",message, message1 -> {
             message1.getMessageProperties().getHeaders().putAll(map);
             return message1;
         });

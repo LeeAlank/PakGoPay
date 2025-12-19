@@ -30,7 +30,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             // 处理无效token 重定向到登陆页
             // response.sendRedirect("/web/login");
             //filterChain.doFilter(request, response);
-            response.sendError(200, "token is expire");
+            //response.sendError(200, "token is expire");
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+
         }
     }
 }

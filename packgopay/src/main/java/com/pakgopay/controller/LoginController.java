@@ -46,7 +46,7 @@ public class LoginController {
         testMessage.setContent("hello world");
         testMq.send("test", testMessage);
         testMessage.setContent("这是一个延迟消息");
-        testMq.sendDelay("delay-test", testMessage);
+        testMq.sendDelay("test-delay-L10S", testMessage);
         return "{'zf':'test'}";
     }
 

@@ -12,6 +12,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <spring-boot.version>2.6.13</spring-boot.version>
+        <docker.image.prefix>packGoPayDocker</docker.image.prefix>
+        <dockerDirectory>src/main/docker</dockerDirectory>
     </properties>
     <dependencies>
         <dependency>
@@ -63,8 +65,8 @@
         </dependency>
             <!-- MySQL驱动 -->
             <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
                 <scope>runtime</scope>
             </dependency>
             <!-- Spring Boot Starter JDBC -->

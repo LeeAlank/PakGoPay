@@ -15,4 +15,10 @@ public class TestReceiver {
         //System.out.println("I get a test message: " + new ObjectMapper().readValue(message, TestMessage.class).getContent());
         System.out.println(new Date() + "You get it" + message);
     }
+
+    @RabbitListener(queuesToDeclare = @Queue("test-delay-L10S"))
+    public void reveiveMessage2(String message) throws JsonProcessingException {
+        //System.out.println("I get a test message: " + new ObjectMapper().readValue(message, TestMessage.class).getContent());
+        System.out.println(new Date() + "You get it" + message);
+    }
 }
