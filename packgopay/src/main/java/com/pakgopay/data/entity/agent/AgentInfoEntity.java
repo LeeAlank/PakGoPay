@@ -2,6 +2,8 @@ package com.pakgopay.data.entity.agent;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class AgentInfoEntity {
 
@@ -34,6 +36,21 @@ public class AgentInfoEntity {
      * max level
      */
     private Integer maxLevel;
+
+    /**
+     * exact level
+     */
+    private Integer level;
+
+    /**
+     * direct parent id
+     */
+    private String parentId;
+
+    /**
+     * visible user ids for permission scope
+     */
+    private List<String> allowedUserIds;
 
     /** Page number (start from 1) */
     private Integer pageNo;

@@ -17,6 +17,16 @@ public class AgentQueryRequest extends ExportBaseRequest {
     private String accountName;
 
     /**
+     * level
+     */
+    private Boolean isSearchFirstLevel = false;
+
+    /**
+     * level
+     */
+    private Boolean isSearchNextLevel = false;
+
+    /**
      * status
      */
     private Integer status;

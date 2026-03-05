@@ -187,6 +187,7 @@ public class AccountStatementServiceImpl implements AccountStatementService {
                 .ifTrue(2 == req.getOrderType())
                 .reqStr("walletAddr", req::getWalletAddr, dto::setWalletAddr)
                 .endSkip()
+                .str(req::getClientIp, dto::setRequestIp)
                 .str(req::getRemark, dto::setRemark);
 
         // 4) meta

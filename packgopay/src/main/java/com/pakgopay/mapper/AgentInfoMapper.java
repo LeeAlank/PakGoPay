@@ -44,4 +44,8 @@ public interface AgentInfoMapper {
     List<AgentInfoDto> pageByQuery(AgentInfoEntity entity);
 
     Optional<AgentInfoDto> findByAgentName(@Param("agentName") String agentName);
+
+    List<AgentInfoDto> findAncestorAgentsByDescendant(@Param("descendantUserId") String descendantUserId);
+
+    List<String> findDescendantUserIdsByAncestor(@Param("ancestorUserId") String ancestorUserId);
 }

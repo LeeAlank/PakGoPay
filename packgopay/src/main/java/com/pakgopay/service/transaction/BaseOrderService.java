@@ -62,6 +62,8 @@ public abstract class BaseOrderService {
     private static final String API_KEY_PREFIX = "api-key ";
     private static final int CREATE_ORDER_IDEMPOTENCY_TTL_SECONDS = 120;
     private static final long ORDER_TIMEOUT_DELAY_MILLIS = 10 * 60 * 1000L;
+    private static final String MERCHANT_SIGN_KEY_CACHE_PREFIX = "merchant:signkey:";
+    private static final int MERCHANT_SIGN_KEY_CACHE_TTL_SECONDS = 300;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() { };
 
@@ -435,8 +437,8 @@ public abstract class BaseOrderService {
     // ----------------------------- notify body / balance / report -----------------------------
 
     protected Map<String, Object> buildCollectionNotifyBody(
-            CollectionOrderDto orderDto, TransactionStatus targetStatus, String key) {
-        String signKey = resolveMerchantSignKey(key, orderDto.getMerchantUserId());
+            CollectionOrderDto orderDto, TransactionStatus targetStatus) {
+        String signKey = resolveMerchantSignKeyByMerchantUserId(orderDto.getMerchantUserId());
         Map<String, Object> body = buildSignPayload(orderDto,
                 "merchantUserId", "transactionNo", "merchantOrderNo", "createTime");
         body.put("amount", formatNotifyAmount(orderDto.getAmount()));
@@ -454,8 +456,8 @@ public abstract class BaseOrderService {
     }
 
     protected Map<String, Object> buildPayNotifyBody(
-            PayOrderDto orderDto, TransactionStatus targetStatus, String key) {
-        String signKey = resolveMerchantSignKey(key, orderDto.getMerchantUserId());
+            PayOrderDto orderDto, TransactionStatus targetStatus) {
+        String signKey = resolveMerchantSignKeyByMerchantUserId(orderDto.getMerchantUserId());
         Map<String, Object> body = buildSignPayload(orderDto,
                 "merchantUserId", "transactionNo", "merchantOrderNo", "createTime");
         body.put("amount", formatNotifyAmount(orderDto.getAmount()));
@@ -477,6 +479,39 @@ public abstract class BaseOrderService {
             return null;
         }
         return amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /**
+     * Load merchant sign key from merchant_info and return decrypted plain text key.
+     */
+    protected String resolveMerchantSignKeyByMerchantUserId(String merchantUserId) {
+        if (merchantUserId == null || merchantUserId.isBlank()) {
+            log.warn("resolveMerchantSignKeyByMerchantUserId failed: merchantUserId is empty");
+            throw new PakGoPayException(ResultCode.INVALID_PARAMS, "merchantUserId is empty");
+        }
+        String cacheKey = buildMerchantSignKeyCacheKey(merchantUserId);
+        String cachedSignKey = redisUtil.getValue(cacheKey);
+        if (cachedSignKey != null && !cachedSignKey.isBlank()) {
+            return cachedSignKey;
+        }
+        MerchantInfoDto merchantInfoDto = merchantInfoMapper.findByUserId(merchantUserId);
+        if (merchantInfoDto == null) {
+            log.warn("resolveMerchantSignKeyByMerchantUserId failed: merchant not found, merchantUserId={}",
+                    merchantUserId);
+            throw new PakGoPayException(ResultCode.USER_IS_NOT_EXIST, "merchant is invalid");
+        }
+        String plainSignKey = resolveMerchantSignKey(merchantInfoDto.getSignKey(), merchantUserId);
+        try {
+            redisUtil.setWithSecondExpire(cacheKey, plainSignKey, MERCHANT_SIGN_KEY_CACHE_TTL_SECONDS);
+        } catch (Exception e) {
+            log.warn("cache merchant signKey failed, merchantUserId={}, message={}",
+                    merchantUserId, e.getMessage());
+        }
+        return plainSignKey;
+    }
+
+    protected String buildMerchantSignKeyCacheKey(String merchantUserId) {
+        return MERCHANT_SIGN_KEY_CACHE_PREFIX + merchantUserId;
     }
 
     protected void updateAgentFeeBalance(BalanceService balanceService,

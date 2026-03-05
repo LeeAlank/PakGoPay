@@ -49,6 +49,9 @@ public class AccountStatementsDto implements Serializable {
     /** Wallet address */
     private String walletAddr;
 
+    /** Request IP */
+    private String requestIp;
+
     /** User ID */
     private String userId;
 

@@ -13,7 +13,6 @@
         <result column="amount" property="amount" javaType="java.math.BigDecimal"/>
         <result column="actual_amount" property="actualAmount" javaType="java.math.BigDecimal"/>
 
-        <result column="callback_token" property="callbackToken" javaType="java.lang.String"/>
         <result column="callback_url" property="callbackUrl" javaType="java.lang.String"/>
         <result column="callback_times" property="callbackTimes" javaType="java.lang.Integer"/>
 
@@ -104,7 +103,7 @@
 
     <!-- Base columns -->
     <sql id="BaseColumns">
-        transaction_no,merchant_order_no,amount,actual_amount,callback_token,callback_url,callback_times,last_callback_time,success_callback_time,callback_status,merchant_user_id,
+        transaction_no,merchant_order_no,amount,actual_amount,callback_url,callback_times,last_callback_time,success_callback_time,callback_status,merchant_user_id,
         merchant_fixed_fee,merchant_rate,merchant_fee,agent1_fixed_fee,agent1_rate,agent1_fee,agent2_fixed_fee,agent2_rate,agent2_fee,agent3_fixed_fee,agent3_rate,agent3_fee,
         request_ip,create_time,update_time,request_time,order_type,payment_mode,payment_id,payment_no,channel_id,order_status,
         remark,currency_type,operate_type
@@ -115,7 +114,7 @@
         INSERT INTO pay_order (
         <include refid="BaseColumns"/>
         ) VALUES (
-        #{transactionNo},#{merchantOrderNo},#{amount},#{actualAmount},#{callbackToken},#{callbackUrl},#{callbackTimes},#{lastCallbackTime},#{successCallbackTime},#{callbackStatus},#{merchantUserId},
+        #{transactionNo},#{merchantOrderNo},#{amount},#{actualAmount},#{callbackUrl},#{callbackTimes},#{lastCallbackTime},#{successCallbackTime},#{callbackStatus},#{merchantUserId},
         #{merchantFixedFee},#{merchantRate},#{merchantFee},#{agent1FixedFee},#{agent1Rate},#{agent1Fee},#{agent2FixedFee},#{agent2Rate},#{agent2Fee},#{agent3FixedFee},#{agent3Rate},#{agent3Fee},
         #{requestIp},#{createTime},#{updateTime},#{requestTime},#{orderType},#{paymentMode},#{paymentId},#{paymentNo},#{channelId},#{orderStatus},
         #{remark},#{currencyType},#{operateType}
@@ -181,7 +180,6 @@
         <if test="dto.amount != null">amount = #{dto.amount},</if>
         <if test="dto.actualAmount != null">actual_amount = #{dto.actualAmount},</if>
 
-        <if test="dto.callbackToken != null">callback_token = #{dto.callbackToken},</if>
         <if test="dto.callbackUrl != null">callback_url = #{dto.callbackUrl},</if>
         <if test="dto.callbackTimes != null">callback_times = #{dto.callbackTimes},</if>
         <if test="dto.lastCallbackTime != null">last_callback_time = #{dto.lastCallbackTime},</if>

@@ -23,6 +23,7 @@ import com.pakgopay.mapper.dto.*;
 import com.pakgopay.service.BalanceService;
 import com.pakgopay.service.MerchantService;
 import com.pakgopay.service.common.ExportReportDataColumns;
+import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.util.CommonUtil;
 import com.pakgopay.util.CloudflareIpWhitelistUtil;
 import com.pakgopay.util.CryptoUtil;
@@ -45,6 +46,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class MerchantServiceImpl implements MerchantService {
+    private static final String MERCHANT_SIGN_KEY_CACHE_PREFIX = "merchant:signkey:";
+
 
     @Autowired
     private MerchantInfoMapper merchantInfoMapper;
@@ -75,6 +78,9 @@ public class MerchantServiceImpl implements MerchantService {
     @Autowired
     private CloudflareIpWhitelistUtil cloudflareIpWhitelistUtil;
 
+    @Autowired
+    private RedisUtil redisUtil;
+
     @Override
     public MerchantInfoDto fetchMerchantInfo(String userId) throws PakGoPayException {
         try {
@@ -83,10 +89,8 @@ public class MerchantServiceImpl implements MerchantService {
                 return null;
             }
             if (StringUtils.hasText(merchantInfoDto.getParentId())) {
-                List<AgentInfoDto> agentInfoDtoList = agentInfoMapper.getAllAgentInfo();
-                Map<String, AgentInfoDto> agentByUserIdMap = CommonUtil.safeList(agentInfoDtoList).stream()
-                        .collect(Collectors.toMap(AgentInfoDto::getUserId, Function.identity(), (a, b) -> a));
-                List<AgentInfoDto> agentChain = buildAgentChain(agentByUserIdMap, merchantInfoDto.getParentId());
+                List<AgentInfoDto> agentChain = CommonUtil.safeList(
+                        agentInfoMapper.findAncestorAgentsByDescendant(merchantInfoDto.getParentId()));
                 merchantInfoDto.setAgentInfos(agentChain);
             }
             return merchantInfoDto;
@@ -137,6 +141,13 @@ public class MerchantServiceImpl implements MerchantService {
                     targetMerchantUserId);
             throw new PakGoPayException(ResultCode.DATA_BASE_ERROR, "reset merchant sign key failed");
         }
+        // Refresh sign-key cache after key rotation.
+        try {
+            redisUtil.remove(buildMerchantSignKeyCacheKey(targetMerchantUserId));
+        } catch (Exception e) {
+            log.warn("resetMerchantSignKey cache refresh failed, merchantUserId={}, message={}",
+                    targetMerchantUserId, e.getMessage());
+        }
 
         MerchantSecretKeyResponse response = new MerchantSecretKeyResponse();
         response.setMerchantUserId(targetMerchantUserId);
@@ -174,6 +185,10 @@ public class MerchantServiceImpl implements MerchantService {
             throw new PakGoPayException(ResultCode.USER_HAS_NO_ROLE_PERMISSION, "no permission");
         }
         return targetMerchantUserId;
+    }
+
+    private String buildMerchantSignKeyCacheKey(String merchantUserId) {
+        return MERCHANT_SIGN_KEY_CACHE_PREFIX + merchantUserId;
     }
 
     private MerchantResponse fetchMerchantPage(MerchantQueryRequest merchantQueryRequest) throws PakGoPayException {
@@ -289,6 +304,7 @@ public class MerchantServiceImpl implements MerchantService {
 
         Map<Long, PaymentDto> paymentByIdMap = CommonUtil.safeList(paymentDtoList).stream()
                 .collect(Collectors.toMap(PaymentDto::getPaymentId, Function.identity(), (a, b) -> a));
+        Map<String, List<AgentInfoDto>> agentChainByParentIdCache = new HashMap<>();
 
         for (MerchantInfoDto merchant : merchantInfoDtoList) {
             if (merchant == null) {
@@ -303,7 +319,9 @@ public class MerchantServiceImpl implements MerchantService {
                 // Merchant has an agent, use agent's channelIds
                 AgentInfoDto parentAgent = agentByUserIdMap.get(merchant.getParentId());
                 channelIds = CommonUtil.parseIds(parentAgent == null ? null : parentAgent.getChannelIds());
-                List<AgentInfoDto> agentChain = buildAgentChain(agentByUserIdMap, merchant.getParentId());
+                List<AgentInfoDto> agentChain = agentChainByParentIdCache.computeIfAbsent(
+                        merchant.getParentId(),
+                        this::resolveAgentChainByDescendantUserId);
                 merchant.setAgentInfos(agentChain);
             } else {
                 // No agent, use merchant's own channelIds
@@ -367,6 +385,10 @@ public class MerchantServiceImpl implements MerchantService {
         // Reverse to [top -> ... -> bottom]
         Collections.reverse(chainBottomToTop);
         return chainBottomToTop;
+    }
+
+    private List<AgentInfoDto> resolveAgentChainByDescendantUserId(String descendantUserId) {
+        return CommonUtil.safeList(agentInfoMapper.findAncestorAgentsByDescendant(descendantUserId));
     }
 
     /**

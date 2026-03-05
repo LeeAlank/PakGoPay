@@ -214,6 +214,14 @@
                 AND agent_name = #{agentName}
             </if>
 
+            <if test="parentId != null and parentId != ''">
+                AND parent_id = #{parentId}
+            </if>
+
+            <if test="level != null">
+                AND level = #{level}
+            </if>
+
             <choose>
                 <when test="topAgentId != null and topAgentId != ''">
                     AND top_agent_id = #{topAgentId}
@@ -235,6 +243,13 @@
                 AND status = #{status}
             </if>
 
+            <if test="allowedUserIds != null and !allowedUserIds.isEmpty()">
+                AND user_id IN
+                <foreach collection="allowedUserIds" item="uid" open="(" close=")" separator=",">
+                    #{uid}
+                </foreach>
+            </if>
+
         </where>
     </sql>
 
@@ -247,6 +262,14 @@
 
             <if test="agentName != null and agentName != ''">
                 AND ai.agent_name = #{agentName}
+            </if>
+
+            <if test="parentId != null and parentId != ''">
+                AND ai.parent_id = #{parentId}
+            </if>
+
+            <if test="level != null">
+                AND ai.level = #{level}
             </if>
 
             <choose>
@@ -268,6 +291,13 @@
 
             <if test="status != null">
                 AND ai.status = #{status}
+            </if>
+
+            <if test="allowedUserIds != null and !allowedUserIds.isEmpty()">
+                AND ai.user_id IN
+                <foreach collection="allowedUserIds" item="uid" open="(" close=")" separator=",">
+                    #{uid}
+                </foreach>
             </if>
 
         </where>
@@ -314,6 +344,22 @@
         FROM agent_info
         WHERE agent_name = #{agentName}
         LIMIT 1
+    </select>
+
+    <select id="findAncestorAgentsByDescendant" resultMap="AgentInfoResultMap">
+        SELECT
+        <include refid="BaseColumns"/>
+        FROM agent_closure ac
+        JOIN agent_info ai ON ai.user_id = ac.ancestor_user_id
+        WHERE ac.descendant_user_id = #{descendantUserId}
+        ORDER BY ac.depth DESC
+    </select>
+
+    <select id="findDescendantUserIdsByAncestor" resultType="java.lang.String">
+        SELECT descendant_user_id
+        FROM agent_closure
+        WHERE ancestor_user_id = #{ancestorUserId}
+        ORDER BY depth ASC
     </select>
 
 </mapper>

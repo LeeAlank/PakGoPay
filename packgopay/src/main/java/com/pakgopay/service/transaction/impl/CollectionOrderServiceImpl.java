@@ -425,7 +425,7 @@ public class CollectionOrderServiceImpl extends BaseOrderService implements Coll
             runCallbackAsync(scene, collectionOrderDto.getTransactionNo(), () -> {
                 try {
                     OrderHandler.NotifyResult notifyResult = handler.sendNotifyToMerchant(
-                            buildCollectionNotifyBody(collectionOrderDto, targetStatus, collectionOrderDto.getCallbackToken()),
+                            buildCollectionNotifyBody(collectionOrderDto, targetStatus),
                             collectionOrderDto.getCallbackUrl());
                     updateNotifyCallbackMeta(collectionOrderDto, notifyResult);
                 } catch (Exception e) {
@@ -728,7 +728,6 @@ public class CollectionOrderServiceImpl extends BaseOrderService implements Coll
                 .obj(() -> OrderStatus.PROCESSING.getCode().toString(), dto::setOrderStatus) // order status: 1-processing, 2-failed
                 .obj(() -> 0, dto::setCallbackStatus) // callback status: 0-pending, 1-failed, 2-success
                 .obj(request::getNotificationUrl, dto::setCallbackUrl) // async callback url
-                .obj(() -> merchantInfo == null ? null : merchantInfo.getSignKey(), dto::setCallbackToken) // merchant encrypted sign key
                 .obj(() -> CommonConstant.ZERO, dto::setCallbackTimes) // initial callback times
                 .obj(request::getClientIp, dto::setRequestIp) // request ip
                 .obj(request::getRemark, dto::setRemark) // remark

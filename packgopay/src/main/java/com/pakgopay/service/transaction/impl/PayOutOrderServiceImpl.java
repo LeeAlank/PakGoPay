@@ -425,7 +425,7 @@ public class PayOutOrderServiceImpl extends BaseOrderService implements PayOutOr
             runCallbackAsync(scene, payOrderDto.getTransactionNo(), () -> {
                 try {
                     OrderHandler.NotifyResult notifyResult = handler.sendNotifyToMerchant(
-                            buildPayNotifyBody(payOrderDto, targetStatus, payOrderDto.getCallbackToken()),
+                            buildPayNotifyBody(payOrderDto, targetStatus),
                             payOrderDto.getCallbackUrl());
                     updateNotifyCallbackMeta(payOrderDto, notifyResult);
                 } catch (Exception e) {
@@ -803,7 +803,6 @@ public class PayOutOrderServiceImpl extends BaseOrderService implements PayOutOr
         .obj(() -> OrderStatus.PROCESSING.getCode().toString(), dto::setOrderStatus) // order status: 1-processing, 2-failed
         .obj(() -> 0, dto::setCallbackStatus) // callback status: 0-pending, 1-failed, 2-success
         .obj(request::getNotificationUrl, dto::setCallbackUrl) // async callback url
-        .obj(() -> merchantInfo == null ? null : merchantInfo.getSignKey(), dto::setCallbackToken) // merchant encrypted sign key
         .obj(() -> CommonConstant.ZERO, dto::setCallbackTimes) // initial callback times
         .obj(request::getClientIp, dto::setRequestIp) // request ip
         .obj(request::getRemark, dto::setRemark) // remark

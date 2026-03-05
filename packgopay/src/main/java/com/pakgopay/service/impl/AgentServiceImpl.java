@@ -76,32 +76,54 @@ public class AgentServiceImpl implements AgentService {
         AgentInfoEntity entity = new AgentInfoEntity();
 
         Integer roleId = commonService.getRoleIdByUserId(agentQueryRequest.getUserId());
+        boolean isAgent = Objects.equals(roleId, CommonConstant.ROLE_AGENT);
+        if (!Objects.equals(roleId, CommonConstant.ROLE_ADMIN) && !isAgent) {
+            throw new PakGoPayException(ResultCode.USER_HAS_NO_ROLE_PERMISSION);
+        }
+
+        Set<String> visibleUserIds = null;
+        if (isAgent) {
+            visibleUserIds = collectSelfAndDescendantUserIds(agentQueryRequest.getUserId());
+            if (visibleUserIds.isEmpty()) {
+                return buildEmptyAgentResponse(agentQueryRequest);
+            }
+            entity.setAllowedUserIds(new ArrayList<>(visibleUserIds));
+        }
+
         String agentName = agentQueryRequest.getAgentName();
         String accountName = agentQueryRequest.getAccountName();
         boolean hasAgentName = agentName != null && !agentName.isBlank();
         boolean hasAccountName = accountName != null && !accountName.isBlank();
-        if (hasAgentName || hasAccountName) {
-            Optional<AgentInfoDto> target =
-                    agentInfoMapper.findByAgentNameOrAccountName(agentName, accountName);
-            if (target.isEmpty()) {
-                AgentResponse response = new AgentResponse();
-                response.setAgentInfoDtoList(Collections.emptyList());
-                response.setTotalNumber(0);
-                response.setPageNo(agentQueryRequest.getPageNo());
-                response.setPageSize(agentQueryRequest.getPageSize());
-                return response;
+        if (Boolean.TRUE.equals(agentQueryRequest.getIsSearchNextLevel())) {
+            AgentInfoDto targetAgent = resolveNextLevelTarget(
+                    agentQueryRequest.getUserId(),
+                    isAgent,
+                    hasAgentName,
+                    hasAccountName,
+                    agentName,
+                    accountName);
+            if (targetAgent == null) {
+                return buildEmptyAgentResponse(agentQueryRequest);
             }
-            AgentInfoDto targetAgent = target.get();
-            entity.setUserId(targetAgent.getUserId());
-            if (targetAgent.getTopAgentId() != null && !targetAgent.getTopAgentId().isBlank()) {
-                entity.setTopAgentId(targetAgent.getTopAgentId());
+            if (visibleUserIds != null && !visibleUserIds.contains(targetAgent.getUserId())) {
+                log.warn("fetchAgentPage next-level target forbidden, operatorUserId={}, targetUserId={}",
+                        agentQueryRequest.getUserId(), targetAgent.getUserId());
+                return buildEmptyAgentResponse(agentQueryRequest);
             }
-            if (targetAgent.getLevel() != null) {
-                entity.setMaxLevel(targetAgent.getLevel());
+            entity.setParentId(targetAgent.getUserId());
+        } else {
+            // Normal query path: exact filters on agent/account name.
+            if (hasAgentName) {
+                entity.setAgentName(agentName);
             }
-        } else if (roleId != null && roleId == CommonConstant.ROLE_AGENT) {
-            entity.setUserId(agentQueryRequest.getUserId());
+            if (hasAccountName) {
+                entity.setAccountName(accountName);
+            }
+            if (Boolean.TRUE.equals(agentQueryRequest.getIsSearchFirstLevel())) {
+                entity.setLevel(1);
+            }
         }
+
         entity.setStatus(agentQueryRequest.getStatus());
         entity.setPageNo(agentQueryRequest.getPageNo());
         entity.setPageSize(agentQueryRequest.getPageSize());
@@ -123,6 +145,39 @@ public class AgentServiceImpl implements AgentService {
         response.setPageNo(entity.getPageNo());
         response.setPageSize(entity.getPageSize());
         return response;
+    }
+
+    private AgentResponse buildEmptyAgentResponse(AgentQueryRequest request) {
+        AgentResponse response = new AgentResponse();
+        response.setAgentInfoDtoList(Collections.emptyList());
+        response.setTotalNumber(0);
+        response.setPageNo(request.getPageNo());
+        response.setPageSize(request.getPageSize());
+        return response;
+    }
+
+    private AgentInfoDto resolveNextLevelTarget(
+            String operatorUserId,
+            boolean isAgent,
+            boolean hasAgentName,
+            boolean hasAccountName,
+            String agentName,
+            String accountName) {
+        if (hasAgentName || hasAccountName) {
+            return agentInfoMapper.findByAgentNameOrAccountName(agentName, accountName).orElse(null);
+        }
+        if (isAgent) {
+            return agentInfoMapper.findByUserId(operatorUserId);
+        }
+        throw new PakGoPayException(ResultCode.INVALID_PARAMS, "agentName/accountName is required");
+    }
+
+    private Set<String> collectSelfAndDescendantUserIds(String rootUserId) {
+        if (rootUserId == null || rootUserId.isBlank()) {
+            return Collections.emptySet();
+        }
+        List<String> descendants = agentInfoMapper.findDescendantUserIdsByAncestor(rootUserId);
+        return descendants == null ? Collections.emptySet() : new LinkedHashSet<>(descendants);
     }
 
     private void enrichAgentDetails(List<AgentInfoDto> agentInfoDtoList) {

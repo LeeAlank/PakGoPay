@@ -31,9 +31,6 @@ public class CollectionOrderDto implements Serializable {
     /** Merchant's User ID (not system) */
     private String merchantUserId;
 
-    /** Callback token */
-    private String callbackToken;
-
     /** Callback URL */
     private String callbackUrl;
 

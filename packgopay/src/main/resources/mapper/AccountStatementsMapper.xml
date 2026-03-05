@@ -24,6 +24,7 @@
         <result column="total_balance_after"       property="totalBalanceAfter"      javaType="java.math.BigDecimal"/>
 
         <result column="wallet_addr"               property="walletAddr"             javaType="java.lang.String"/>
+        <result column="request_ip"                property="requestIp"              javaType="java.lang.String"/>
         <result column="user_id"                   property="userId"                 javaType="java.lang.String"/>
         <result column="user_role"                 property="userRole"               javaType="java.lang.Integer"/>
         <result column="name"                      property="name"                   javaType="java.lang.String"/>
@@ -49,6 +50,7 @@
         total_balance_before,
         total_balance_after,
         wallet_addr,
+        request_ip,
         user_id,
         user_role,
         name,
@@ -94,6 +96,7 @@
             total_balance_before,
             total_balance_after,
             wallet_addr,
+            request_ip,
             user_id,
             user_role,
             name,
@@ -117,6 +120,7 @@
                 #{totalBalanceBefore},
                 #{totalBalanceAfter},
                 #{walletAddr},
+                #{requestIp},
                 #{userId},
                 #{userRole},
                 #{name},
@@ -146,6 +150,7 @@
             <if test="totalBalanceAfter != null">total_balance_after = #{totalBalanceAfter},</if>
 
             <if test="walletAddr != null and walletAddr != ''">wallet_addr = #{walletAddr},</if>
+            <if test="requestIp != null and requestIp != ''">request_ip = #{requestIp},</if>
             <if test="userId != null and userId != ''">user_id = #{userId},</if>
             <if test="userRole != null">user_role = #{userRole},</if>
             <if test="name != null and name != ''">name = #{name},</if>

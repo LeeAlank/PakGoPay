@@ -1907,6 +1907,7 @@ public class ReportTask {
             if (merchants == null || merchants.isEmpty()) {
                 return;
             }
+            Map<String, List<AgentInfoDto>> ancestorAgentChainCache = new HashMap<>();
             for (MerchantInfoDto merchant : merchants) {
                 if (merchant == null) {
                     continue;
@@ -1916,7 +1917,9 @@ public class ReportTask {
                     // Merchant under agent: use agent channels and build agent chain.
                     AgentInfoDto parentAgent = agentByUserIdCache.get(merchant.getParentId());
                     channelIds = CommonUtil.parseIds(parentAgent == null ? null : parentAgent.getChannelIds());
-                    List<AgentInfoDto> agentChain = MerchantServiceImpl.buildAgentChain(agentByUserIdCache, merchant.getParentId());
+                    List<AgentInfoDto> agentChain = ancestorAgentChainCache.computeIfAbsent(
+                            merchant.getParentId(),
+                            pid -> CommonUtil.safeList(agentInfoMapper.findAncestorAgentsByDescendant(pid)));
                     merchant.setAgentInfos(agentChain);
                 } else {
                     // Direct merchant: use merchant channels and attach channel info list.

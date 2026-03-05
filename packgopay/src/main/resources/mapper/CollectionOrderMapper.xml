@@ -27,7 +27,6 @@
         <result column="merchant_user_id" property="merchantUserId" javaType="java.lang.String"/>
 
         <!-- Callback info -->
-        <result column="callback_token" property="callbackToken" javaType="java.lang.String"/>
         <result column="callback_url" property="callbackUrl" javaType="java.lang.String"/>
         <result column="callback_times" property="callbackTimes" javaType="java.lang.Integer"/>
         <result column="last_callback_time" property="lastCallbackTime" javaType="java.lang.Long"/>
@@ -126,7 +125,7 @@
 
     <!-- Base columns -->
     <sql id="BaseColumns">
-        transaction_no,merchant_order_no,amount,actual_amount,floating_amount,currency_type,merchant_user_id,callback_token,callback_url,callback_times,
+        transaction_no,merchant_order_no,amount,actual_amount,floating_amount,currency_type,merchant_user_id,callback_url,callback_times,
         last_callback_time,merchant_fixed_fee,merchant_rate,merchant_fee,
         agent1_rate,agent1_fixed_fee,agent1_fee,agent2_rate,agent2_fixed_fee,agent2_fee,agent3_rate,agent3_fixed_fee,agent3_fee,
         request_ip,operate_type,remark,create_time,update_time,collection_mode,payment_id,order_type,callback_status,
@@ -138,7 +137,7 @@
         INSERT INTO collection_order (
         <include refid="BaseColumns"/>
         ) VALUES (
-        #{transactionNo},#{merchantOrderNo},#{amount},#{actualAmount},#{floatingAmount},#{currencyType},#{merchantUserId},#{callbackToken},#{callbackUrl},#{callbackTimes},
+        #{transactionNo},#{merchantOrderNo},#{amount},#{actualAmount},#{floatingAmount},#{currencyType},#{merchantUserId},#{callbackUrl},#{callbackTimes},
         #{lastCallbackTime},#{merchantFixedFee},#{merchantRate},#{merchantFee},
         #{agent1Rate},#{agent1FixedFee},#{agent1Fee},#{agent2Rate},#{agent2FixedFee},#{agent2Fee},#{agent3Rate},#{agent3FixedFee},#{agent3Fee},
         #{requestIp},#{operateType},#{remark},#{createTime},#{updateTime},#{collectionMode},#{paymentId},#{orderType},#{callbackStatus},
@@ -208,7 +207,6 @@
         <if test="dto.requestTime != null">request_time = #{dto.requestTime},</if>
         <if test="dto.callbackTimes != null">callback_times = #{dto.callbackTimes},</if>
 
-        <if test="dto.callbackToken != null">callback_token = #{dto.callbackToken},</if>
         <if test="dto.callbackUrl != null">callback_url = #{dto.callbackUrl},</if>
         <if test="dto.lastCallbackTime != null">last_callback_time = #{dto.lastCallbackTime},</if>
 

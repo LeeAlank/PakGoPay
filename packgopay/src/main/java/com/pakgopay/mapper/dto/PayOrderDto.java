@@ -22,9 +22,6 @@ public class PayOrderDto implements Serializable {
     /** Actual amount (DB type is varchar(10)) */
     private BigDecimal actualAmount;
 
-    /** Callback token */
-    private String callbackToken;
-
     /** Callback URL */
     private String callbackUrl;
 
