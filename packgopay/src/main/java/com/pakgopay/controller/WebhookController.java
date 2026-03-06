@@ -5,15 +5,24 @@ import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.write.style.column.LongestMatchColumnWidthStyleStrategy;
 import com.pakgopay.common.enums.ResultCode;
+import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
 import com.pakgopay.data.reqeust.report.OpsReportRequest;
+import com.pakgopay.data.reqeust.transaction.NotifyRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.report.OpsReportResponse;
+import com.pakgopay.mapper.CollectionOrderMapper;
 import com.pakgopay.mapper.CurrencyTypeMapper;
+import com.pakgopay.mapper.PayOrderMapper;
 import com.pakgopay.mapper.dto.OpsOrderDailyDto;
 import com.pakgopay.mapper.dto.CurrencyTypeDTO;
+import com.pakgopay.mapper.dto.CollectionOrderDto;
+import com.pakgopay.mapper.dto.PayOrderDto;
 import com.pakgopay.service.OpsReportService;
 import com.pakgopay.service.common.TelegramService;
+import com.pakgopay.service.transaction.CollectionOrderService;
+import com.pakgopay.service.transaction.PayOutOrderService;
+import com.pakgopay.util.SnowflakeIdGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,11 +55,25 @@ public class WebhookController {
     private final TelegramService telegramService;
     private final OpsReportService opsReportService;
     private final CurrencyTypeMapper currencyTypeMapper;
+    private final CollectionOrderService collectionOrderService;
+    private final PayOutOrderService payOutOrderService;
+    private final CollectionOrderMapper collectionOrderMapper;
+    private final PayOrderMapper payOrderMapper;
 
-    public WebhookController(TelegramService telegramService, OpsReportService opsReportService, CurrencyTypeMapper currencyTypeMapper) {
+    public WebhookController(TelegramService telegramService,
+                             OpsReportService opsReportService,
+                             CurrencyTypeMapper currencyTypeMapper,
+                             CollectionOrderService collectionOrderService,
+                             PayOutOrderService payOutOrderService,
+                             CollectionOrderMapper collectionOrderMapper,
+                             PayOrderMapper payOrderMapper) {
         this.telegramService = telegramService;
         this.opsReportService = opsReportService;
         this.currencyTypeMapper = currencyTypeMapper;
+        this.collectionOrderService = collectionOrderService;
+        this.payOutOrderService = payOutOrderService;
+        this.collectionOrderMapper = collectionOrderMapper;
+        this.payOrderMapper = payOrderMapper;
     }
 
     @PostMapping
@@ -62,6 +85,10 @@ public class WebhookController {
         }
         try {
             JSONObject root = JSON.parseObject(payload);
+            JSONObject callbackQuery = root.getJSONObject("callback_query");
+            if (callbackQuery != null) {
+                return handleCallbackQuery(callbackQuery, response);
+            }
             JSONObject message = root.getJSONObject("message");
             if (message == null) {
                 message = root.getJSONObject("channel_post");
@@ -117,6 +144,129 @@ public class WebhookController {
             log.error("telegram webhook handle failed: {}", e.getMessage());
         }
         return CommonResponse.success("ok");
+    }
+
+    private CommonResponse handleCallbackQuery(JSONObject callbackQuery, HttpServletResponse response) {
+        String callbackQueryId = callbackQuery.getString("id");
+        JSONObject from = callbackQuery.getJSONObject("from");
+        String fromUserId = from == null ? null : String.valueOf(from.get("id"));
+        if (!telegramService.isEnabled()) {
+            telegramService.answerCallbackQuery(callbackQueryId, "disabled", false);
+            return CommonResponse.success("disabled");
+        }
+        if (!telegramService.isAllowedUser(fromUserId)) {
+            telegramService.answerCallbackQuery(callbackQueryId, "you have no permission", true);
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return CommonResponse.fail(ResultCode.SC_UNAUTHORIZED, "forbidden");
+        }
+
+        String callbackData = callbackQuery.getString("data");
+        if (callbackData == null || callbackData.isBlank()) {
+            telegramService.answerCallbackQuery(callbackQueryId, "invalid callback", true);
+            return CommonResponse.success("ignore");
+        }
+
+        String[] parts = callbackData.split("\\|");
+        if (parts.length != 4 || !"ord".equals(parts[0])) {
+            telegramService.answerCallbackQuery(callbackQueryId, "unsupported action", true);
+            return CommonResponse.success("ignore");
+        }
+
+        String type = parts[1];
+        String transactionNo = parts[2];
+        String status = parts[3];
+        try {
+            if (!"2".equals(status) && !"3".equals(status)) {
+                telegramService.answerCallbackQuery(callbackQueryId, "invalid status", true);
+                return CommonResponse.success("ignore");
+            }
+
+            if ("c".equals(type)) {
+                String merchantNo = getCollectionMerchantNo(transactionNo);
+                if (merchantNo == null) {
+                    telegramService.answerCallbackQuery(callbackQueryId, "order not found", true);
+                    return CommonResponse.success("not_found");
+                }
+                NotifyRequest request = new NotifyRequest();
+                request.setTransactionNo(transactionNo);
+                request.setMerchantNo(merchantNo);
+                request.setStatus(status);
+                collectionOrderService.manualHandleNotify(request);
+            } else if ("p".equals(type)) {
+                String merchantNo = getPayoutMerchantNo(transactionNo);
+                if (merchantNo == null) {
+                    telegramService.answerCallbackQuery(callbackQueryId, "order not found", true);
+                    return CommonResponse.success("not_found");
+                }
+                NotifyRequest request = new NotifyRequest();
+                request.setTransactionNo(transactionNo);
+                request.setMerchantNo(merchantNo);
+                request.setStatus(status);
+                payOutOrderService.manualHandleNotify(request);
+            } else {
+                telegramService.answerCallbackQuery(callbackQueryId, "unsupported order type", true);
+                return CommonResponse.success("ignore");
+            }
+
+            telegramService.answerCallbackQuery(callbackQueryId, "done", false);
+            updateCallbackMessage(callbackQuery, status, from);
+            return CommonResponse.success("ok");
+        } catch (PakGoPayException e) {
+            log.error("telegram callback handle failed, code={}, message={}", e.getErrorCode(), e.getMessage());
+            telegramService.answerCallbackQuery(callbackQueryId, "failed: " + e.getMessage(), true);
+            return CommonResponse.fail(e.getCode(), e.getMessage());
+        } catch (Exception e) {
+            log.error("telegram callback handle unexpected failed: {}", e.getMessage());
+            telegramService.answerCallbackQuery(callbackQueryId, "failed", true);
+            return CommonResponse.fail(ResultCode.FAIL, e.getMessage());
+        }
+    }
+
+    private void updateCallbackMessage(JSONObject callbackQuery, String status, JSONObject from) {
+        try {
+            JSONObject message = callbackQuery.getJSONObject("message");
+            if (message == null) {
+                return;
+            }
+            JSONObject chat = message.getJSONObject("chat");
+            if (chat == null) {
+                return;
+            }
+            String chatId = String.valueOf(chat.get("id"));
+            Long messageId = message.getLong("message_id");
+            String oldText = message.getString("text");
+            String operator = from == null ? "unknown" : String.valueOf(from.get("id"));
+            String actionText = "2".equals(status) ? "回调成功" : "回调失败";
+            String newText = (oldText == null ? "" : oldText)
+                    + "\n\n处理结果: " + actionText
+                    + "\n处理人: " + operator
+                    + "\n处理时间: " + Instant.now().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            telegramService.editMessageText(chatId, messageId, newText, null);
+        } catch (Exception e) {
+            log.warn("updateCallbackMessage failed: {}", e.getMessage());
+        }
+    }
+
+    private String getCollectionMerchantNo(String transactionNo) {
+        long[] range = resolveTransactionNoTimeRange(transactionNo);
+        return collectionOrderMapper.findByTransactionNo(transactionNo, range[0], range[1])
+                .map(CollectionOrderDto::getMerchantUserId)
+                .orElse(null);
+    }
+
+    private String getPayoutMerchantNo(String transactionNo) {
+        long[] range = resolveTransactionNoTimeRange(transactionNo);
+        return payOrderMapper.findByTransactionNo(transactionNo, range[0], range[1])
+                .map(PayOrderDto::getMerchantUserId)
+                .orElse(null);
+    }
+
+    private long[] resolveTransactionNoTimeRange(String transactionNo) {
+        long[] range = SnowflakeIdGenerator.extractMonthEpochSecondRange(transactionNo);
+        if (range == null) {
+            return new long[]{0L, Long.MAX_VALUE};
+        }
+        return range;
     }
 
     private boolean isAllowedUser(JSONObject message) {

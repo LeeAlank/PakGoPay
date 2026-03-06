@@ -12,6 +12,7 @@ import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.CollectionOrderDto;
 import com.pakgopay.mapper.dto.PayOrderDto;
 import com.pakgopay.service.common.SendDmqMessage;
+import com.pakgopay.service.common.OrderInterventionTelegramNotifier;
 import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.util.SnowflakeIdGenerator;
 import lombok.extern.slf4j.Slf4j;
@@ -33,18 +34,21 @@ public class OrderTimeoutMessageReceiver {
     private final UserMapper userMapper;
     private final RedisUtil redisUtil;
     private final SendDmqMessage sendDmqMessage;
+    private final OrderInterventionTelegramNotifier orderInterventionTelegramNotifier;
 
     public OrderTimeoutMessageReceiver(
             CollectionOrderMapper collectionOrderMapper,
             PayOrderMapper payOrderMapper,
             UserMapper userMapper,
             RedisUtil redisUtil,
-            SendDmqMessage sendDmqMessage) {
+            SendDmqMessage sendDmqMessage,
+            OrderInterventionTelegramNotifier orderInterventionTelegramNotifier) {
         this.collectionOrderMapper = collectionOrderMapper;
         this.payOrderMapper = payOrderMapper;
         this.userMapper = userMapper;
         this.redisUtil = redisUtil;
         this.sendDmqMessage = sendDmqMessage;
+        this.orderInterventionTelegramNotifier = orderInterventionTelegramNotifier;
     }
 
     @RabbitListener(
@@ -85,6 +89,9 @@ public class OrderTimeoutMessageReceiver {
                             NotificationComponentType.Collection_Component,
                             NotificationComponentType.Collection_Title,
                             "collection");
+                    orderInterventionTelegramNotifier.notifyTimeoutCollectionOrder(
+                            timeoutMessage.getTransactionNo(),
+                            timeoutMessage.getCreateTime());
                 }
                 log.info("order timeout mq handled, type=collection, transactionNo={}, updated={}",
                         timeoutMessage.getTransactionNo(), updated);
@@ -109,6 +116,9 @@ public class OrderTimeoutMessageReceiver {
                             NotificationComponentType.PayOut_Component,
                             NotificationComponentType.PayOut_Title,
                             "payOut");
+                    orderInterventionTelegramNotifier.notifyTimeoutPayoutOrder(
+                            timeoutMessage.getTransactionNo(),
+                            timeoutMessage.getCreateTime());
                 }
                 log.info("order timeout mq handled, type=payout, transactionNo={}, updated={}",
                         timeoutMessage.getTransactionNo(), updated);

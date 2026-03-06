@@ -25,6 +25,7 @@ public class TelegramService {
     private static final String WEBHOOK_SECRET_KEY = "telegram.webhookSecret";
     private static final String ALLOWED_USER_IDS_KEY = "telegram.allowedUserIds";
     private static final String ENABLED_KEY = "telegram.enabled";
+    private static final String CONSOLE_URL_KEY = "telegram.consoleUrl";
     private static final String API_BASE = "https://api.telegram.org";
 
     private final RestTemplate restTemplate;
@@ -64,6 +65,102 @@ public class TelegramService {
             return result;
         } catch (Exception e) {
             log.warn("Telegram sendMessage failed: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    public String sendMessageWithInlineKeyboardTo(String chatId, String text, Object replyMarkup) {
+        String token = getConfig(TOKEN_KEY);
+        if (!StringUtils.hasText(token)) {
+            log.warn("Telegram token not configured.");
+            return null;
+        }
+        if (!StringUtils.hasText(chatId)) {
+            log.warn("Telegram chatId not configured.");
+            return null;
+        }
+        String url = API_BASE + "/bot" + token + "/sendMessage";
+        Map<String, Object> body = new HashMap<>();
+        body.put("chat_id", chatId);
+        body.put("text", text);
+        if (replyMarkup != null) {
+            body.put("reply_markup", replyMarkup);
+        }
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, body, String.class);
+            String result = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && result != null && result.contains("\"ok\":true")) {
+                return result;
+            }
+            log.warn("Telegram sendMessageWithInlineKeyboard failed: status={}, body={}", response.getStatusCode(), result);
+            return result;
+        } catch (Exception e) {
+            log.warn("Telegram sendMessageWithInlineKeyboard failed: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    public String editMessageText(String chatId, Long messageId, String text, Object replyMarkup) {
+        String token = getConfig(TOKEN_KEY);
+        if (!StringUtils.hasText(token)) {
+            log.warn("Telegram token not configured.");
+            return null;
+        }
+        if (!StringUtils.hasText(chatId) || messageId == null) {
+            log.warn("Telegram editMessageText skipped: invalid chatId or messageId.");
+            return null;
+        }
+        String url = API_BASE + "/bot" + token + "/editMessageText";
+        Map<String, Object> body = new HashMap<>();
+        body.put("chat_id", chatId);
+        body.put("message_id", messageId);
+        body.put("text", text);
+        if (replyMarkup != null) {
+            body.put("reply_markup", replyMarkup);
+        }
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, body, String.class);
+            String result = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && result != null && result.contains("\"ok\":true")) {
+                return result;
+            }
+            log.warn("Telegram editMessageText failed: status={}, body={}", response.getStatusCode(), result);
+            return result;
+        } catch (Exception e) {
+            log.warn("Telegram editMessageText failed: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    public String answerCallbackQuery(String callbackQueryId, String text, Boolean showAlert) {
+        String token = getConfig(TOKEN_KEY);
+        if (!StringUtils.hasText(token)) {
+            log.warn("Telegram token not configured.");
+            return null;
+        }
+        if (!StringUtils.hasText(callbackQueryId)) {
+            log.warn("Telegram answerCallbackQuery skipped: callbackQueryId is empty.");
+            return null;
+        }
+        String url = API_BASE + "/bot" + token + "/answerCallbackQuery";
+        Map<String, Object> body = new HashMap<>();
+        body.put("callback_query_id", callbackQueryId);
+        if (StringUtils.hasText(text)) {
+            body.put("text", text);
+        }
+        if (showAlert != null) {
+            body.put("show_alert", showAlert);
+        }
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, body, String.class);
+            String result = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && result != null && result.contains("\"ok\":true")) {
+                return result;
+            }
+            log.warn("Telegram answerCallbackQuery failed: status={}, body={}", response.getStatusCode(), result);
+            return result;
+        } catch (Exception e) {
+            log.warn("Telegram answerCallbackQuery failed: {}", e.getMessage());
             throw e;
         }
     }
@@ -147,6 +244,10 @@ public class TelegramService {
 
     public String getDefaultChatId() {
         return getConfig(CHAT_ID_KEY);
+    }
+
+    public String getConsoleBaseUrl() {
+        return getConfig(CONSOLE_URL_KEY);
     }
 
     public void updateTelegramConfig(String token, String chatId, String webhookSecret, String allowedUserIds, Integer enabled) {
