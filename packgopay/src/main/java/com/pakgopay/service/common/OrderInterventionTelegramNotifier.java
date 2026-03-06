@@ -18,6 +18,7 @@ public class OrderInterventionTelegramNotifier {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String CALLBACK_PREFIX = "ord";
+    private static final String WITHDRAW_CALLBACK_PREFIX = "wdr";
 
     private final TelegramService telegramService;
 
@@ -39,6 +40,30 @@ public class OrderInterventionTelegramNotifier {
 
     public void notifyTimeoutPayoutOrderToChat(String chatId, String transactionNo, Long createTime) {
         sendTimeoutOrder(chatId, "payout", transactionNo, createTime);
+    }
+
+    public void notifyPendingWithdrawOrder(String statementId, Long createTime) {
+        if (!telegramService.isEnabled()) {
+            log.info("skip telegram withdraw notify: telegram disabled, statementId={}", statementId);
+            return;
+        }
+        if (!StringUtils.hasText(statementId)) {
+            return;
+        }
+        String chatId = telegramService.getDefaultChatId();
+        if (!StringUtils.hasText(chatId)) {
+            log.warn("skip telegram withdraw notify: default chatId is empty");
+            return;
+        }
+        String createTimeText = createTime == null
+                ? "-"
+                : Instant.ofEpochSecond(createTime).atZone(ZoneId.systemDefault()).format(TIME_FMT);
+        String text = "【需审批】提现订单\n"
+                + "订单号: " + statementId + "\n"
+                + "创建时间: " + createTimeText + "\n"
+                + "请选择操作(需填写说明):";
+        Map<String, Object> markup = buildWithdrawReplyMarkup(statementId);
+        telegramService.sendMessageWithInlineKeyboardTo(chatId, text, markup);
     }
 
     private void sendTimeoutOrder(String targetChatId, String orderType, String transactionNo, Long createTime) {
@@ -84,6 +109,24 @@ public class OrderInterventionTelegramNotifier {
             inlineKeyboard.add(row2);
         }
 
+        Map<String, Object> replyMarkup = new HashMap<>();
+        replyMarkup.put("inline_keyboard", inlineKeyboard);
+        return replyMarkup;
+    }
+
+    private Map<String, Object> buildWithdrawReplyMarkup(String statementId) {
+        List<List<Map<String, String>>> inlineKeyboard = new ArrayList<>();
+        List<Map<String, String>> row1 = new ArrayList<>();
+        row1.add(buttonCallback("通过", WITHDRAW_CALLBACK_PREFIX + "|" + statementId + "|1"));
+        row1.add(buttonCallback("驳回", WITHDRAW_CALLBACK_PREFIX + "|" + statementId + "|2"));
+        inlineKeyboard.add(row1);
+
+        String consoleBaseUrl = telegramService.getConsoleBaseUrl();
+        if (StringUtils.hasText(consoleBaseUrl)) {
+            List<Map<String, String>> row2 = new ArrayList<>();
+            row2.add(buttonUrl("前往后台", consoleBaseUrl));
+            inlineKeyboard.add(row2);
+        }
         Map<String, Object> replyMarkup = new HashMap<>();
         replyMarkup.put("inline_keyboard", inlineKeyboard);
         return replyMarkup;

@@ -9,24 +9,29 @@ import com.pakgopay.common.constant.CommonConstant;
 import com.pakgopay.common.enums.TransactionStatus;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.exception.PakGoPayException;
+import com.pakgopay.data.reqeust.account.AccountStatementEditRequest;
 import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
 import com.pakgopay.data.reqeust.report.OpsReportRequest;
 import com.pakgopay.data.reqeust.transaction.NotifyRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.report.OpsReportResponse;
+import com.pakgopay.mapper.AccountStatementsMapper;
 import com.pakgopay.mapper.CollectionOrderMapper;
 import com.pakgopay.mapper.CurrencyTypeMapper;
 import com.pakgopay.mapper.PayOrderMapper;
+import com.pakgopay.mapper.dto.AccountStatementsDto;
 import com.pakgopay.mapper.dto.OpsOrderDailyDto;
 import com.pakgopay.mapper.dto.CurrencyTypeDTO;
 import com.pakgopay.mapper.dto.CollectionOrderDto;
 import com.pakgopay.mapper.dto.PayOrderDto;
 import com.pakgopay.service.OpsReportService;
+import com.pakgopay.service.common.AccountStatementService;
 import com.pakgopay.service.common.OrderInterventionTelegramNotifier;
 import com.pakgopay.service.common.TelegramService;
 import com.pakgopay.service.common.TelegramOrderNoRecognizer;
 import com.pakgopay.service.transaction.CollectionOrderService;
 import com.pakgopay.service.transaction.PayOutOrderService;
+import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.util.SnowflakeIdGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,8 +69,12 @@ public class WebhookController {
     private final PayOutOrderService payOutOrderService;
     private final CollectionOrderMapper collectionOrderMapper;
     private final PayOrderMapper payOrderMapper;
+    private final AccountStatementsMapper accountStatementsMapper;
+    private final AccountStatementService accountStatementService;
+    private final RedisUtil redisUtil;
     private final OrderInterventionTelegramNotifier orderInterventionTelegramNotifier;
     private final TelegramOrderNoRecognizer telegramOrderNoRecognizer;
+    private static final int WITHDRAW_PENDING_EXPIRE_SECONDS = 600;
 
     public WebhookController(TelegramService telegramService,
                              OpsReportService opsReportService,
@@ -74,6 +83,9 @@ public class WebhookController {
                              PayOutOrderService payOutOrderService,
                              CollectionOrderMapper collectionOrderMapper,
                              PayOrderMapper payOrderMapper,
+                             AccountStatementsMapper accountStatementsMapper,
+                             AccountStatementService accountStatementService,
+                             RedisUtil redisUtil,
                              OrderInterventionTelegramNotifier orderInterventionTelegramNotifier,
                              TelegramOrderNoRecognizer telegramOrderNoRecognizer) {
         this.telegramService = telegramService;
@@ -83,6 +95,9 @@ public class WebhookController {
         this.payOutOrderService = payOutOrderService;
         this.collectionOrderMapper = collectionOrderMapper;
         this.payOrderMapper = payOrderMapper;
+        this.accountStatementsMapper = accountStatementsMapper;
+        this.accountStatementService = accountStatementService;
+        this.redisUtil = redisUtil;
         this.orderInterventionTelegramNotifier = orderInterventionTelegramNotifier;
         this.telegramOrderNoRecognizer = telegramOrderNoRecognizer;
     }
@@ -133,10 +148,13 @@ public class WebhookController {
                 return CommonResponse.success("ignore");
             }
             String trimmed = text.trim();
+            if (tryHandleWithdrawRemark(message, chatId, trimmed)) {
+                return CommonResponse.success("ok");
+            }
             if ("/hello".equals(trimmed)) {
                 telegramService.sendMessageTo(chatId, "Hello");
             } else if ("/help".equals(trimmed)) {
-                telegramService.sendMessageTo(chatId, "/hello /help /todayOpsData");
+                telegramService.sendMessageTo(chatId, "/hello /help /todayOpsData /remark 说明");
             } else if (trimmed.startsWith("/todayOpsData")) {
                 String[] parts = trimmed.split("\\s+");
                 if (parts.length < 2) {
@@ -273,6 +291,10 @@ public class WebhookController {
             return CommonResponse.success("ignore");
         }
 
+        if (callbackData.startsWith("wdr|")) {
+            return handleWithdrawCallbackQuery(callbackQuery, response);
+        }
+
         String[] parts = callbackData.split("\\|");
         if (parts.length != 4 || !"ord".equals(parts[0])) {
             telegramService.answerCallbackQuery(callbackQueryId, "unsupported action", true);
@@ -326,6 +348,120 @@ public class WebhookController {
             log.error("telegram callback handle unexpected failed: {}", e.getMessage());
             telegramService.answerCallbackQuery(callbackQueryId, "failed", true);
             return CommonResponse.fail(ResultCode.FAIL, e.getMessage());
+        }
+    }
+
+    private CommonResponse handleWithdrawCallbackQuery(JSONObject callbackQuery, HttpServletResponse response) {
+        String callbackQueryId = callbackQuery.getString("id");
+        JSONObject from = callbackQuery.getJSONObject("from");
+        String fromUserId = from == null ? null : String.valueOf(from.get("id"));
+        if (!telegramService.isAllowedUser(fromUserId)) {
+            telegramService.answerCallbackQuery(callbackQueryId, "you have no permission", true);
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return CommonResponse.fail(ResultCode.SC_UNAUTHORIZED, "forbidden");
+        }
+
+        String callbackData = callbackQuery.getString("data");
+        String[] parts = callbackData == null ? new String[0] : callbackData.split("\\|");
+        if (parts.length != 3) {
+            telegramService.answerCallbackQuery(callbackQueryId, "invalid callback", true);
+            return CommonResponse.success("ignore");
+        }
+        String statementId = parts[1];
+        String targetStatus = parts[2];
+        if (!"1".equals(targetStatus) && !"2".equals(targetStatus)) {
+            telegramService.answerCallbackQuery(callbackQueryId, "invalid status", true);
+            return CommonResponse.success("ignore");
+        }
+
+        AccountStatementsDto dto = accountStatementsMapper.selectById(statementId);
+        if (dto == null || dto.getOrderType() == null || dto.getOrderType() != 2) {
+            telegramService.answerCallbackQuery(callbackQueryId, "withdraw order not found", true);
+            return CommonResponse.success("not_found");
+        }
+        if (dto.getStatus() != null && dto.getStatus() != 0) {
+            telegramService.answerCallbackQuery(callbackQueryId, "order already processed", true);
+            return CommonResponse.success("already_processed");
+        }
+
+        JSONObject pending = new JSONObject();
+        pending.put("statementId", statementId);
+        pending.put("status", targetStatus);
+        redisUtil.setWithSecondExpire(
+                buildWithdrawPendingKey(fromUserId),
+                pending.toJSONString(),
+                WITHDRAW_PENDING_EXPIRE_SECONDS);
+        telegramService.answerCallbackQuery(callbackQueryId, "请发送说明: /remark 你的说明", false);
+        telegramService.sendMessageTo(resolveCallbackChatId(callbackQuery), "请填写说明后提交，格式：/remark 你的说明");
+        return CommonResponse.success("pending_remark");
+    }
+
+    private boolean tryHandleWithdrawRemark(JSONObject message, String chatId, String trimmedText) {
+        if (trimmedText == null || trimmedText.isEmpty()) {
+            return false;
+        }
+        JSONObject from = message.getJSONObject("from");
+        String fromUserId = from == null ? null : String.valueOf(from.get("id"));
+        if (fromUserId == null) {
+            telegramService.sendMessageTo(chatId, "用户信息异常，无法处理。");
+            return true;
+        }
+        String pendingRaw = redisUtil.getValue(buildWithdrawPendingKey(fromUserId));
+        if ((pendingRaw == null || pendingRaw.isEmpty()) && !trimmedText.startsWith("/remark")) {
+            return false;
+        }
+        if (pendingRaw == null || pendingRaw.isEmpty()) {
+            telegramService.sendMessageTo(chatId, "当前没有待处理的提现审批操作。");
+            return true;
+        }
+
+        String remark;
+        if (trimmedText.startsWith("/remark")) {
+            remark = trimmedText.replaceFirst("^/remark\\s*", "").trim();
+        } else if (trimmedText.startsWith("/")) {
+            telegramService.sendMessageTo(chatId, "请填写说明后提交，格式：/remark 你的说明");
+            return true;
+        } else {
+            remark = trimmedText.trim();
+        }
+        if (remark.isEmpty()) {
+            telegramService.sendMessageTo(chatId, "说明不能为空，请使用：/remark 你的说明");
+            return true;
+        }
+
+        try {
+            JSONObject pending = JSON.parseObject(pendingRaw);
+            String statementId = pending.getString("statementId");
+            String status = pending.getString("status");
+            AccountStatementEditRequest request = new AccountStatementEditRequest();
+            request.setId(statementId);
+            request.setAgree("1".equals(status));
+            request.setRemark(remark);
+            request.setUserName("telegram:" + fromUserId);
+            CommonResponse updateRes = accountStatementService.updateAccountStatement(request);
+            if (updateRes != null && updateRes.getCode() != null && updateRes.getCode() == 0) {
+                redisUtil.remove(buildWithdrawPendingKey(fromUserId));
+                telegramService.sendMessageTo(chatId, "提现订单处理成功: " + statementId);
+            } else {
+                String errMsg = updateRes == null ? "unknown error" : String.valueOf(updateRes.getMessage());
+                telegramService.sendMessageTo(chatId, "提现订单处理失败: " + errMsg);
+            }
+        } catch (Exception e) {
+            log.error("telegram withdraw remark handle failed: {}", e.getMessage());
+            telegramService.sendMessageTo(chatId, "提现订单处理失败，请稍后重试。");
+        }
+        return true;
+    }
+
+    private String buildWithdrawPendingKey(String telegramUserId) {
+        return "tg:wdr:pending:" + telegramUserId;
+    }
+
+    private String resolveCallbackChatId(JSONObject callbackQuery) {
+        try {
+            return String.valueOf(callbackQuery.getJSONObject("message").getJSONObject("chat").get("id"));
+        } catch (Exception ignored) {
+            return telegramService.getDefaultChatId();
         }
     }
 

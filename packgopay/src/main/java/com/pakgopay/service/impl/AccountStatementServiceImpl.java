@@ -16,6 +16,7 @@ import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.AccountStatementsDto;
 import com.pakgopay.service.BalanceService;
 import com.pakgopay.service.common.AccountStatementService;
+import com.pakgopay.service.common.OrderInterventionTelegramNotifier;
 import com.pakgopay.service.common.SendDmqMessage;
 import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.util.CommonUtil;
@@ -60,6 +61,9 @@ public class AccountStatementServiceImpl implements AccountStatementService {
 
     @Autowired
     private SendDmqMessage sendDmqMessage;
+
+    @Autowired
+    private OrderInterventionTelegramNotifier orderInterventionTelegramNotifier;
 
     @Override
     public CommonResponse queryAccountStatement(AccountStatementQueryRequest accountStatementQueryRequest) {
@@ -164,6 +168,9 @@ public class AccountStatementServiceImpl implements AccountStatementService {
                     sendDmqMessage.sendFanout("user-notify", message);
                 }
             }
+            orderInterventionTelegramNotifier.notifyPendingWithdrawOrder(
+                    accountStatementsDto.getId(),
+                    accountStatementsDto.getCreateTime());
         }
 
         log.info("createAccountStatement end");
