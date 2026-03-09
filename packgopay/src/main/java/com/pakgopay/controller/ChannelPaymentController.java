@@ -1,10 +1,12 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.channel.*;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.ChannelPaymentService;
+import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.util.ExportFileUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,6 +27,9 @@ public class ChannelPaymentController {
 
     @Autowired
     private ChannelPaymentService channelPaymentService;
+
+    @Autowired
+    private OperateLogService operateLogService;
 
     @PostMapping("/queryChannel")
     public CommonResponse queryChannel(@RequestBody @Valid ChannelQueryRequest channelQueryRequest, HttpServletRequest request) {
@@ -80,7 +85,9 @@ public class ChannelPaymentController {
     @PostMapping("/editChannel")
     public CommonResponse editChannel(@RequestBody @Valid ChannelEditRequest channelEditRequest, HttpServletRequest request) {
         try {
-            return channelPaymentService.updateChannel(channelEditRequest);
+            CommonResponse response = channelPaymentService.updateChannel(channelEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_CHANNEL, channelEditRequest.getUserId(), channelEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editChannel failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editChannel failed: " + e.getMessage());
@@ -90,7 +97,9 @@ public class ChannelPaymentController {
     @PostMapping("/editPayment")
     public CommonResponse editPayment(@RequestBody @Valid PaymentEditRequest paymentEditRequest, HttpServletRequest request) {
         try {
-            return channelPaymentService.updatePayment(paymentEditRequest);
+            CommonResponse response = channelPaymentService.updatePayment(paymentEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_PAYMENT, paymentEditRequest.getUserId(), paymentEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editPayment failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editPayment failed: " + e.getMessage());
@@ -100,7 +109,9 @@ public class ChannelPaymentController {
     @PostMapping("/addChannel")
     public CommonResponse addChannel(@RequestBody @Valid ChannelAddRequest channelAddRequest, HttpServletRequest request) {
         try {
-            return channelPaymentService.createChannel(channelAddRequest);
+            CommonResponse response = channelPaymentService.createChannel(channelAddRequest);
+            operateLogService.write(OperateInterfaceEnum.ADD_CHANNEL, channelAddRequest.getUserId(), channelAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("addChannel failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "addChannel failed: " + e.getMessage());
@@ -110,7 +121,9 @@ public class ChannelPaymentController {
     @PostMapping("/addPayment")
     public CommonResponse addPayment(@RequestBody @Valid PaymentAddRequest paymentAddRequest, HttpServletRequest request) {
         try {
-            return channelPaymentService.createPayment(paymentAddRequest);
+            CommonResponse response = channelPaymentService.createPayment(paymentAddRequest);
+            operateLogService.write(OperateInterfaceEnum.ADD_PAYMENT, paymentAddRequest.getUserId(), paymentAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("addPayment failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "addPayment failed: " + e.getMessage());

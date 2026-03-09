@@ -1,5 +1,6 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.transaction.CollectionOrderRequest;
 import com.pakgopay.data.reqeust.transaction.MerchantAvailableChannelRequest;
@@ -8,6 +9,7 @@ import com.pakgopay.data.reqeust.transaction.OrderQueryRequest;
 import com.pakgopay.data.reqeust.transaction.PayOutOrderRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.ChannelPaymentService;
+import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.service.transaction.CollectionOrderService;
 import com.pakgopay.service.transaction.PayOutOrderService;
 import jakarta.validation.Valid;
@@ -31,6 +33,9 @@ public class TransactionController {
 
     @Autowired
     private ChannelPaymentService channelPaymentService;
+
+    @Autowired
+    private OperateLogService operateLogService;
 
     @PostMapping(value = "/queryCollectionOrders")
     public CommonResponse queryCollectionOrders(@RequestBody @Valid OrderQueryRequest request) {
@@ -65,6 +70,7 @@ public class TransactionController {
                 request.getPaymentNo());
         try {
             CommonResponse response = collectionOrderService.manualCreateCollectionOrder(request);
+            operateLogService.write(OperateInterfaceEnum.MANUAL_CREATE_COLLECTION_ORDER, request.getUserId(), request);
             log.info("manualCreateCollectionOrder success, merchantId={}, merchantOrderNo={}",
                     request.getMerchantId(), request.getMerchantOrderNo());
             return response;
@@ -87,6 +93,7 @@ public class TransactionController {
                 request.getPaymentNo());
         try {
             CommonResponse response = payOutOrderService.manualCreatePayOutOrder(request);
+            operateLogService.write(OperateInterfaceEnum.MANUAL_CREATE_PAYOUT_ORDER, request.getUserId(), request);
             log.info("manualCreatePayOutOrder success, merchantId={}, merchantOrderNo={}",
                     request.getMerchantId(), request.getMerchantOrderNo());
             return response;
@@ -105,6 +112,7 @@ public class TransactionController {
                 request.getTransactionNo(), request.getMerchantNo(), request.getStatus());
         try {
             CommonResponse response = collectionOrderService.manualHandleNotify(request);
+            operateLogService.write(OperateInterfaceEnum.MANUAL_NOTIFY_COLLECTION_ORDER, request.getUserId(), request);
             log.info("manualNotifyCollectionOrder success, transactionNo={}", request.getTransactionNo());
             return response;
         } catch (PakGoPayException e) {
@@ -122,6 +130,7 @@ public class TransactionController {
                 request.getTransactionNo(), request.getMerchantNo(), request.getStatus());
         try {
             CommonResponse response = payOutOrderService.manualHandleNotify(request);
+            operateLogService.write(OperateInterfaceEnum.MANUAL_NOTIFY_PAYOUT_ORDER, request.getUserId(), request);
             log.info("manualNotifyPayOutOrder success, transactionNo={}", request.getTransactionNo());
             return response;
         } catch (PakGoPayException e) {

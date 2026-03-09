@@ -1,8 +1,10 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.CurrencyTypeManagementService;
+import com.pakgopay.service.common.OperateLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +15,9 @@ public class CurrencyManagementController {
 
     @Autowired
     private CurrencyTypeManagementService currencyTypeManagementService;
+
+    @Autowired
+    private OperateLogService operateLogService;
 
     @PostMapping("/currencyTypeInfo")
     public CommonResponse currencyTypeInfo(@RequestBody CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
@@ -27,12 +32,16 @@ public class CurrencyManagementController {
 
     @PostMapping("/addCurrencyType")
     public CommonResponse addCurrencyType(@RequestBody CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
-        return currencyTypeManagementService.createCurrencyType(currencyTypeRequest, request);
+        CommonResponse response = currencyTypeManagementService.createCurrencyType(currencyTypeRequest, request);
+        operateLogService.write(OperateInterfaceEnum.ADD_CURRENCY_TYPE, currencyTypeRequest.getUserId(), currencyTypeRequest);
+        return response;
     }
 
     @PostMapping("/updateCurrencyType")
     public CommonResponse updateCurrencyType(@RequestBody CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
-        return currencyTypeManagementService.updateCurrencyType(currencyTypeRequest, request);
+        CommonResponse response = currencyTypeManagementService.updateCurrencyType(currencyTypeRequest, request);
+        operateLogService.write(OperateInterfaceEnum.UPDATE_CURRENCY_TYPE, currencyTypeRequest.getUserId(), currencyTypeRequest);
+        return response;
     }
 
     /*@GetMapping("/getCurrencyById")

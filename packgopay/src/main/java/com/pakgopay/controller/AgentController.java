@@ -1,5 +1,6 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.account.AccountAddRequest;
@@ -8,6 +9,7 @@ import com.pakgopay.data.reqeust.account.AccountQueryRequest;
 import com.pakgopay.data.reqeust.agent.*;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.AgentService;
+import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.util.ExportFileUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +29,9 @@ import java.io.IOException;
 public class AgentController {
     @Autowired
     private AgentService agentService;
+
+    @Autowired
+    private OperateLogService operateLogService;
 
     @PostMapping("/queryAgent")
     public CommonResponse queryAgent(@RequestBody @Valid AgentQueryRequest agentQueryRequest, HttpServletRequest request) {
@@ -56,7 +61,9 @@ public class AgentController {
     @PostMapping("/editAgent")
     public CommonResponse editAgent(@RequestBody @Valid AgentEditRequest agentEditRequest, HttpServletRequest request) {
         try {
-            return agentService.updateAgent(agentEditRequest);
+            CommonResponse response = agentService.updateAgent(agentEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_AGENT, agentEditRequest.getUserId(), agentEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editAgent failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editAgent failed: " + e.getMessage());
@@ -66,7 +73,9 @@ public class AgentController {
     @PostMapping("/addAgent")
     public CommonResponse addAgent(@RequestBody @Valid AgentAddRequest agentAddRequest, HttpServletRequest request) {
         try {
-            return agentService.createAgent(agentAddRequest);
+            CommonResponse response = agentService.createAgent(agentAddRequest);
+            operateLogService.write(OperateInterfaceEnum.ADD_AGENT, agentAddRequest.getUserId(), agentAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("addAgent failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "addAgent failed: " + e.getMessage());
@@ -101,7 +110,9 @@ public class AgentController {
     @PostMapping("/editAgentAccount")
     public CommonResponse editAgentAccount(@RequestBody @Valid AccountEditRequest accountEditRequest, HttpServletRequest request) {
         try {
-            return agentService.updateAgentAccount(accountEditRequest);
+            CommonResponse response = agentService.updateAgentAccount(accountEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_AGENT_ACCOUNT, accountEditRequest.getUserId(), accountEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editAgentAccount failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editAgentAccount failed: " + e.getMessage());
@@ -111,7 +122,9 @@ public class AgentController {
     @PostMapping("/addAgentAccount")
     public CommonResponse addAgentAccount(@RequestBody @Valid AccountAddRequest accountAddRequest, HttpServletRequest request) {
         try {
-            return agentService.createAgentAccount(accountAddRequest);
+            CommonResponse response = agentService.createAgentAccount(accountAddRequest);
+            operateLogService.write(OperateInterfaceEnum.ADD_AGENT_ACCOUNT, accountAddRequest.getUserId(), accountAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("addAgentAccount failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "addAgentAccount failed: " + e.getMessage());

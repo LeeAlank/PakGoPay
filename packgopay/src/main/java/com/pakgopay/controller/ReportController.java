@@ -1,10 +1,12 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.report.*;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.ReportService;
+import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.util.ExportFileUtils;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -24,6 +26,9 @@ public class ReportController {
 
     @Autowired
     ReportService reportService;
+
+    @Autowired
+    private OperateLogService operateLogService;
 
     //-------------------------------- query data ----------------------------------------------------------------------
 
@@ -83,6 +88,8 @@ public class ReportController {
             @RequestBody @Valid MerchantReportRequest merchantReportRequest, HttpServletResponse response) {
         try {
             reportService.exportMerchantReports(merchantReportRequest, response);
+            operateLogService.write(OperateInterfaceEnum.EXPORT_MERCHANT_REPORT,
+                    merchantReportRequest.getUserId(), merchantReportRequest);
         } catch (PakGoPayException e) {
             log.error("exportMerchantReport failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             ExportFileUtils.writeJsonError(response, e.getCode(), "exportMerchantReport failed: " + e.getMessage());
@@ -98,6 +105,8 @@ public class ReportController {
             @RequestBody @Valid ChannelReportRequest channelReportRequest, HttpServletResponse response) {
         try {
             reportService.exportChannelReports(channelReportRequest, response);
+            operateLogService.write(OperateInterfaceEnum.EXPORT_CHANNEL_REPORT,
+                    channelReportRequest.getUserId(), channelReportRequest);
         } catch (PakGoPayException e) {
             log.error("exportChannelReport failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             ExportFileUtils.writeJsonError(response, e.getCode(), "exportChannelReport failed: " + e.getMessage());
@@ -113,6 +122,8 @@ public class ReportController {
             @RequestBody @Valid AgentReportRequest agentReportRequest, HttpServletResponse response) {
         try {
             reportService.exportAgentReports(agentReportRequest, response);
+            operateLogService.write(OperateInterfaceEnum.EXPORT_AGENT_REPORT,
+                    agentReportRequest.getUserId(), agentReportRequest);
         } catch (PakGoPayException e) {
             log.error("exportAgentReport failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             ExportFileUtils.writeJsonError(response, e.getCode(), "exportAgentReport failed: " + e.getMessage());
@@ -128,6 +139,8 @@ public class ReportController {
             @RequestBody @Valid BaseReportRequest currencyReportRequest, HttpServletResponse response) {
         try {
             reportService.exportCurrencyReports(currencyReportRequest, response);
+            operateLogService.write(OperateInterfaceEnum.EXPORT_CURRENCY_REPORT,
+                    currencyReportRequest.getUserId(), currencyReportRequest);
         } catch (PakGoPayException e) {
             log.error("exportCurrencyReport failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             ExportFileUtils.writeJsonError(response, e.getCode(), "exportCurrencyReport failed: " + e.getMessage());
@@ -143,6 +156,8 @@ public class ReportController {
             @RequestBody @Valid PaymentReportRequest paymentReportRequest, HttpServletResponse response) {
         try {
             reportService.exportPaymentReports(paymentReportRequest, response);
+            operateLogService.write(OperateInterfaceEnum.EXPORT_PAYMENT_REPORT,
+                    paymentReportRequest.getUserId(), paymentReportRequest);
         } catch (PakGoPayException e) {
             log.error("exportPaymentReport failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             ExportFileUtils.writeJsonError(response, e.getCode(), "exportPaymentReport failed: " + e.getMessage());

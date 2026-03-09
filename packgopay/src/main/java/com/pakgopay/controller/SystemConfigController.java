@@ -1,6 +1,7 @@
 package com.pakgopay.controller;
 
 import com.pakgopay.common.constant.CommonConstant;
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.data.reqeust.CreateUserRequest;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
@@ -8,11 +9,13 @@ import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
+import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.RateLimitConfigRequest;
 import com.pakgopay.data.reqeust.systemConfig.TelegramConfigRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.common.TelegramService;
 import com.pakgopay.service.common.RateLimitConfigService;
+import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.service.SystemConfigService;
 import com.pakgopay.service.impl.UserService;
 import com.pakgopay.thirdUtil.GoogleUtil;
@@ -39,9 +42,14 @@ public class SystemConfigController {
     @Autowired
     private RateLimitConfigService rateLimitConfigService;
 
+    @Autowired
+    private OperateLogService operateLogService;
+
     @PostMapping("/createUser")
     public CommonResponse createLoginUser(@RequestBody CreateUserRequest createUserRequest){
-        return userService.createLoginUser(createUserRequest);
+        CommonResponse response = userService.createLoginUser(createUserRequest);
+        operateLogService.write(OperateInterfaceEnum.CREATE_USER, createUserRequest.getOperatorId(), createUserRequest);
+        return response;
     }
 
 
@@ -60,19 +68,30 @@ public class SystemConfigController {
         return systemConfigService.listLoginLogs(loginLogQueryRequest);
     }
 
+    @PostMapping("/operateLogList")
+    public CommonResponse operateLogList(@RequestBody(required = false) @Valid OperateLogQueryRequest operateLogQueryRequest) {
+        return systemConfigService.listOperateLogs(operateLogQueryRequest);
+    }
+
     @GetMapping("/manageLoginUserStatus")
     public CommonResponse manageLoginUserStatus(
             String userId,
             Integer status,
             @RequestAttribute(CommonConstant.ATTR_USER_ID) String operatorId){
-        return systemConfigService.updateLoginUserStatus(userId, status, operatorId);
+        CommonResponse response = systemConfigService.updateLoginUserStatus(userId, status, operatorId);
+        operateLogService.write(OperateInterfaceEnum.MANAGE_LOGIN_USER_STATUS, operatorId,
+                new ManageLoginUserStatusPayload(userId, status));
+        return response;
     }
 
     @GetMapping("/deleteLoginUser")
     public CommonResponse deleteLoginUser(
             String userId,
             @RequestAttribute(CommonConstant.ATTR_USER_ID) String operatorId){
-        return systemConfigService.deleteLoginUser(userId, operatorId);
+        CommonResponse response = systemConfigService.deleteLoginUser(userId, operatorId);
+        operateLogService.write(OperateInterfaceEnum.DELETE_LOGIN_USER, operatorId,
+                new DeleteLoginUserPayload(userId));
+        return response;
     }
 
     @GetMapping("/loginUserByLoginName")
@@ -82,17 +101,26 @@ public class SystemConfigController {
 
     @PostMapping("/addRole")
     public CommonResponse addRoleInfo(@RequestBody AddRoleRequest addRoleRequest, HttpServletRequest request){
-        return systemConfigService.createRole(addRoleRequest, request);
+        CommonResponse response = systemConfigService.createRole(addRoleRequest, request);
+        operateLogService.write(OperateInterfaceEnum.ADD_ROLE, resolveOperatorUserIdFromRequest(request), addRoleRequest);
+        return response;
     }
 
     @PostMapping("/modifyRoleInfo")
     public CommonResponse modifyRoleInfo(@RequestBody ModifyRoleRequest modifyRoleRequest, HttpServletRequest request){
-        return systemConfigService.updateRole(modifyRoleRequest, request);
+        CommonResponse response = systemConfigService.updateRole(modifyRoleRequest, request);
+        operateLogService.write(OperateInterfaceEnum.MODIFY_ROLE, resolveOperatorUserIdFromRequest(request), modifyRoleRequest);
+        return response;
     }
 
     @PostMapping("/deleteRole")
     public CommonResponse deleteRole(@RequestBody DeleteRoleRequest deleteRoleRequest, HttpServletRequest request){
-        return systemConfigService.deleteRole(deleteRoleRequest, request);
+        CommonResponse response = systemConfigService.deleteRole(deleteRoleRequest, request);
+        String operatorUserId = deleteRoleRequest.getUserId() == null
+                ? resolveOperatorUserIdFromRequest(request)
+                : deleteRoleRequest.getUserId();
+        operateLogService.write(OperateInterfaceEnum.DELETE_ROLE, operatorUserId, deleteRoleRequest);
+        return response;
     }
 
     @GetMapping("/getRoleInfoByRoleId")
@@ -105,14 +133,20 @@ public class SystemConfigController {
         // 管理员重置令牌，校验谷歌验证码
         String userInfo = GoogleUtil.getUserInfoFromToken(request);
         String operator = userInfo.split("&")[0];
-        return systemConfigService.resetGoogleKey(operator, userId, loginName);
+        CommonResponse response = systemConfigService.resetGoogleKey(operator, userId, loginName);
+        operateLogService.write(OperateInterfaceEnum.RESET_GOOGLE_KEY, operator,
+                new ResetGoogleKeyPayload(userId, loginName));
+        return response;
     }
 
     @GetMapping("/bindGoogleKey")
     public CommonResponse bindGoogleKey(HttpServletRequest request, @Param("userId") String userId, @Param("loginName") String loginName){
         String userInfo = GoogleUtil.getUserInfoFromToken(request);
         String operator = userInfo.split("&")[0];
-        return systemConfigService.resetGoogleKey(operator, userId, loginName);
+        CommonResponse response = systemConfigService.resetGoogleKey(operator, userId, loginName);
+        operateLogService.write(OperateInterfaceEnum.BIND_GOOGLE_KEY, operator,
+                new BindGoogleKeyPayload(userId, loginName));
+        return response;
     }
 
     @GetMapping("/unCommonMessage")
@@ -131,7 +165,7 @@ public class SystemConfigController {
     }
 
     @PostMapping("/telegramConfig")
-    public CommonResponse updateTelegramConfig(@RequestBody TelegramConfigRequest request) {
+    public CommonResponse updateTelegramConfig(@RequestBody TelegramConfigRequest request, HttpServletRequest httpServletRequest) {
         telegramService.updateTelegramConfig(
             request.getToken(),
             request.getChatId(),
@@ -139,6 +173,8 @@ public class SystemConfigController {
             request.getAllowedUserIds(),
             request.getEnabled()
         );
+        operateLogService.write(OperateInterfaceEnum.UPDATE_TELEGRAM_CONFIG,
+                resolveOperatorUserIdFromRequest(httpServletRequest), request);
         return CommonResponse.success("ok");
     }
 
@@ -148,7 +184,7 @@ public class SystemConfigController {
     }
 
     @PostMapping("/rateLimitConfig")
-    public CommonResponse updateRateLimitConfig(@RequestBody RateLimitConfigRequest request) {
+    public CommonResponse updateRateLimitConfig(@RequestBody RateLimitConfigRequest request, HttpServletRequest httpServletRequest) {
         if (Boolean.TRUE.equals(request.getEnabled())) {
             Long windowSeconds = request.getWindowSeconds();
             Long maxRequests = request.getMaxRequests();
@@ -162,6 +198,21 @@ public class SystemConfigController {
             request.getMaxRequests(),
             request.getFixedIpQps()
         );
+        operateLogService.write(OperateInterfaceEnum.UPDATE_RATE_LIMIT_CONFIG,
+                resolveOperatorUserIdFromRequest(httpServletRequest), request);
         return CommonResponse.success("ok");
     }
+
+    private String resolveOperatorUserIdFromRequest(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object userId = request.getAttribute(CommonConstant.ATTR_USER_ID);
+        return userId == null ? null : String.valueOf(userId);
+    }
+
+    private record ManageLoginUserStatusPayload(String userId, Integer status) {}
+    private record DeleteLoginUserPayload(String userId) {}
+    private record ResetGoogleKeyPayload(String userId, String loginName) {}
+    private record BindGoogleKeyPayload(String userId, String loginName) {}
 }

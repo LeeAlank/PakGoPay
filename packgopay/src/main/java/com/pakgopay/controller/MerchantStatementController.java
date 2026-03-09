@@ -1,5 +1,6 @@
 package com.pakgopay.controller;
 
+import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.account.*;
@@ -10,6 +11,7 @@ import com.pakgopay.data.reqeust.merchant.MerchantSecretKeyRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.MerchantService;
 import com.pakgopay.service.common.AccountStatementService;
+import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.util.ExportFileUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,6 +35,9 @@ public class MerchantStatementController {
 
     @Autowired
     private AccountStatementService accountStatementService;
+
+    @Autowired
+    private OperateLogService operateLogService;
 
     @PostMapping("/queryMerchant")
     public CommonResponse queryMerchant(@RequestBody @Valid MerchantQueryRequest merchantQueryRequest) {
@@ -59,7 +64,9 @@ public class MerchantStatementController {
     public CommonResponse resetMerchantSignKey(
             @RequestBody MerchantSecretKeyRequest request) {
         try {
-            return merchantService.resetMerchantSignKey(request, request.getUserId());
+            CommonResponse response = merchantService.resetMerchantSignKey(request, request.getUserId());
+            operateLogService.write(OperateInterfaceEnum.RESET_MERCHANT_SIGN_KEY, request.getUserId(), request);
+            return response;
         } catch (PakGoPayException e) {
             log.error("resetMerchantSignKey failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "resetMerchantSignKey failed: " + e.getMessage());
@@ -69,7 +76,9 @@ public class MerchantStatementController {
     @PostMapping("/editMerchant")
     public CommonResponse editMerchant(@RequestBody @Valid MerchantEditRequest merchantEditRequest) {
         try {
-            return merchantService.updateMerchant(merchantEditRequest);
+            CommonResponse response = merchantService.updateMerchant(merchantEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_MERCHANT, merchantEditRequest.getUserId(), merchantEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editMerchant failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editMerchant failed: " + e.getMessage());
@@ -79,7 +88,9 @@ public class MerchantStatementController {
     @PostMapping("/addMerchant")
     public CommonResponse addMerchant(@RequestBody @Valid MerchantAddRequest merchantAddRequest) {
         try {
-            return merchantService.createMerchant(merchantAddRequest);
+            CommonResponse response = merchantService.createMerchant(merchantAddRequest);
+            operateLogService.write(OperateInterfaceEnum.ADD_MERCHANT, merchantAddRequest.getUserId(), merchantAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("addMerchant failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "addMerchant failed: " + e.getMessage());
@@ -115,7 +126,9 @@ public class MerchantStatementController {
     @PostMapping("/editMerchantAccount")
     public CommonResponse editMerchantAccount(@RequestBody @Valid AccountEditRequest accountEditRequest, HttpServletRequest request) {
         try {
-            return merchantService.updateMerchantAccount(accountEditRequest);
+            CommonResponse response = merchantService.updateMerchantAccount(accountEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_MERCHANT_ACCOUNT, accountEditRequest.getUserId(), accountEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editMerchantAccount failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editMerchantAccount failed: " + e.getMessage());
@@ -125,7 +138,9 @@ public class MerchantStatementController {
     @PostMapping("/addMerchantAccount")
     public CommonResponse addMerchantAccount(@RequestBody @Valid AccountAddRequest accountAddRequest, HttpServletRequest request) {
         try {
-            return merchantService.createMerchantAccount(accountAddRequest);
+            CommonResponse response = merchantService.createMerchantAccount(accountAddRequest);
+            operateLogService.write(OperateInterfaceEnum.ADD_MERCHANT_ACCOUNT, accountAddRequest.getUserId(), accountAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("addMerchantAccount failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "addMerchantAccount failed: " + e.getMessage());
@@ -147,7 +162,10 @@ public class MerchantStatementController {
     public CommonResponse createAccountStatement(
             @RequestBody @Valid AccountStatementAddRequest accountStatementAddRequest) {
         try {
-            return accountStatementService.createAccountStatement(accountStatementAddRequest);
+            CommonResponse response = accountStatementService.createAccountStatement(accountStatementAddRequest);
+            operateLogService.write(OperateInterfaceEnum.CREATE_ACCOUNT_STATEMENT,
+                    accountStatementAddRequest.getUserId(), accountStatementAddRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("createAccountStatement failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "createAccountStatement failed: " + e.getMessage());
@@ -158,7 +176,10 @@ public class MerchantStatementController {
     public CommonResponse editAccountStatement(
             @RequestBody @Valid AccountStatementEditRequest accountStatementEditRequest) {
         try {
-            return accountStatementService.updateAccountStatement(accountStatementEditRequest);
+            CommonResponse response = accountStatementService.updateAccountStatement(accountStatementEditRequest);
+            operateLogService.write(OperateInterfaceEnum.EDIT_ACCOUNT_STATEMENT,
+                    accountStatementEditRequest.getUserId(), accountStatementEditRequest);
+            return response;
         } catch (PakGoPayException e) {
             log.error("editAccountStatement failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "editAccountStatement failed: " + e.getMessage());

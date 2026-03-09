@@ -8,13 +8,16 @@ import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
+import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.RoleInfoResponse;
 import com.pakgopay.data.response.roleManagement.RoleMenuInfoResponse;
 import com.pakgopay.data.response.systemConfig.LoginLogQueryResponse;
 import com.pakgopay.data.response.systemConfig.LoginUserResponse;
+import com.pakgopay.data.response.systemConfig.OperateLogQueryResponse;
 import com.pakgopay.data.response.systemConfig.ResetGoogleKeyResponse;
 import com.pakgopay.mapper.LoginLogMapper;
+import com.pakgopay.mapper.OperateLogMapper;
 import com.pakgopay.mapper.RoleMapper;
 import com.pakgopay.mapper.RoleMenuMapper;
 import com.pakgopay.mapper.UserMapper;
@@ -51,6 +54,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Autowired
     private LoginLogMapper loginLogMapper;
+
+    @Autowired
+    private OperateLogMapper operateLogMapper;
 
     @Autowired
     private RoleMenuMapper roleMenuMapper;
@@ -134,6 +140,30 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             return CommonResponse.success(response);
         }
         response.setLoginLogs(loginLogMapper.pageByQuery(loginLogQueryRequest));
+        return CommonResponse.success(response);
+    }
+
+    @Override
+    public CommonResponse listOperateLogs(OperateLogQueryRequest operateLogQueryRequest) {
+        if (operateLogQueryRequest == null) {
+            operateLogQueryRequest = new OperateLogQueryRequest();
+        }
+        if (operateLogQueryRequest.getPageNo() == null) {
+            operateLogQueryRequest.setPageNo(1);
+        }
+        if (operateLogQueryRequest.getPageSize() == null) {
+            operateLogQueryRequest.setPageSize(10);
+        }
+        Integer count = operateLogMapper.countByQuery(operateLogQueryRequest);
+        OperateLogQueryResponse response = new OperateLogQueryResponse();
+        response.setTotalNumber(count);
+        response.setPageNo(operateLogQueryRequest.getPageNo());
+        response.setPageSize(operateLogQueryRequest.getPageSize());
+        if (count == null || count == 0) {
+            response.setOperateLogs(new ArrayList<>());
+            return CommonResponse.success(response);
+        }
+        response.setOperateLogs(operateLogMapper.pageByQuery(operateLogQueryRequest));
         return CommonResponse.success(response);
     }
 
