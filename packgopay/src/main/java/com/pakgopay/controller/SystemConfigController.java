@@ -6,6 +6,7 @@ import com.pakgopay.data.reqeust.CreateUserRequest;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
+import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.RateLimitConfigRequest;
 import com.pakgopay.data.reqeust.systemConfig.TelegramConfigRequest;
@@ -16,6 +17,7 @@ import com.pakgopay.service.SystemConfigService;
 import com.pakgopay.service.impl.UserService;
 import com.pakgopay.thirdUtil.GoogleUtil;
 import com.pakgopay.thirdUtil.RedisUtil;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +53,11 @@ public class SystemConfigController {
     @PostMapping("/loginUserList")
     public CommonResponse loginUserList(@RequestBody(required = false) LoginUserRequest loginUserRequest) {
         return systemConfigService.listLoginUsers(loginUserRequest);
+    }
+
+    @PostMapping("/loginLogList")
+    public CommonResponse loginLogList(@RequestBody(required = false) @Valid LoginLogQueryRequest loginLogQueryRequest) {
+        return systemConfigService.listLoginLogs(loginLogQueryRequest);
     }
 
     @GetMapping("/manageLoginUserStatus")

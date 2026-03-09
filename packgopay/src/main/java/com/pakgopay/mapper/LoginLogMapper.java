@@ -1,5 +1,6 @@
 package com.pakgopay.mapper;
 
+import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.mapper.dto.LoginLogDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -22,4 +23,10 @@ public interface LoginLogMapper {
     /** Count by token jti and event type */
     Integer countByTokenJtiAndEventType(@Param("tokenJti") String tokenJti,
                                         @Param("eventType") Integer eventType);
+
+    /** Count by query condition */
+    Integer countByQuery(LoginLogQueryRequest request);
+
+    /** Page by query condition */
+    List<LoginLogDto> pageByQuery(LoginLogQueryRequest request);
 }

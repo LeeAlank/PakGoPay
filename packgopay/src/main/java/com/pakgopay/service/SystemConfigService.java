@@ -3,6 +3,7 @@ package com.pakgopay.service;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
+import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.response.CommonResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +13,8 @@ public interface SystemConfigService {
     public CommonResponse listRoles(String roleName);
 
     public CommonResponse listLoginUsers(LoginUserRequest loginUserRequest);
+
+    public CommonResponse listLoginLogs(LoginLogQueryRequest loginLogQueryRequest);
 
     public CommonResponse updateLoginUserStatus(String userId, Integer status, String operatorId);
 

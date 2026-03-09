@@ -6,12 +6,15 @@ import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
+import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.RoleInfoResponse;
 import com.pakgopay.data.response.roleManagement.RoleMenuInfoResponse;
+import com.pakgopay.data.response.systemConfig.LoginLogQueryResponse;
 import com.pakgopay.data.response.systemConfig.LoginUserResponse;
 import com.pakgopay.data.response.systemConfig.ResetGoogleKeyResponse;
+import com.pakgopay.mapper.LoginLogMapper;
 import com.pakgopay.mapper.RoleMapper;
 import com.pakgopay.mapper.RoleMenuMapper;
 import com.pakgopay.mapper.UserMapper;
@@ -45,6 +48,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private LoginLogMapper loginLogMapper;
 
     @Autowired
     private RoleMenuMapper roleMenuMapper;
@@ -105,6 +111,30 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             return CommonResponse.success(null);
         }
         return CommonResponse.success(loginUserResponse);
+    }
+
+    @Override
+    public CommonResponse listLoginLogs(LoginLogQueryRequest loginLogQueryRequest) {
+        if (loginLogQueryRequest == null) {
+            loginLogQueryRequest = new LoginLogQueryRequest();
+        }
+        if (loginLogQueryRequest.getPageNo() == null) {
+            loginLogQueryRequest.setPageNo(1);
+        }
+        if (loginLogQueryRequest.getPageSize() == null) {
+            loginLogQueryRequest.setPageSize(10);
+        }
+        Integer count = loginLogMapper.countByQuery(loginLogQueryRequest);
+        LoginLogQueryResponse response = new LoginLogQueryResponse();
+        response.setTotalNumber(count);
+        response.setPageNo(loginLogQueryRequest.getPageNo());
+        response.setPageSize(loginLogQueryRequest.getPageSize());
+        if (count == null || count == 0) {
+            response.setLoginLogs(new ArrayList<>());
+            return CommonResponse.success(response);
+        }
+        response.setLoginLogs(loginLogMapper.pageByQuery(loginLogQueryRequest));
+        return CommonResponse.success(response);
     }
 
     @Override
