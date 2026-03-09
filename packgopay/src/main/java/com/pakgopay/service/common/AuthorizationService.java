@@ -9,6 +9,7 @@ import org.jose4j.jwk.RsaJwkGenerator;
 import org.jose4j.jws.AlgorithmIdentifiers;
 import org.jose4j.jws.JsonWebSignature;
 import org.jose4j.jwt.JwtClaims;
+import org.jose4j.jwt.MalformedClaimException;
 import org.jose4j.jwt.NumericDate;
 import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.jose4j.jwt.consumer.JwtConsumer;
@@ -16,7 +17,9 @@ import org.jose4j.jwt.consumer.JwtConsumerBuilder;
 import org.jose4j.lang.JoseException;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
+import java.util.Base64;
 import java.util.UUID;
 
 @Service
@@ -116,12 +119,60 @@ public class AuthorizationService {
                 result.userName = (String) claims.getClaimValue("userName");
                 result.clientIp = (String) claims.getClaimValue("clientIp");
                 result.userAgent = (String) claims.getClaimValue("userAgent");
+                result.jti = claims.getJwtId();
                 return result;
             }
-        } catch (JoseException | InvalidJwtException e) {
+        } catch (JoseException | InvalidJwtException | MalformedClaimException e) {
             logger.error("verify token failed: {}", e.getMessage());
         }
         return null;
+    }
+
+    public static boolean isTokenExpired(String token) {
+        try {
+            JwtConsumer consumer = new JwtConsumerBuilder()
+                    .setRequireExpirationTime()
+                    .setMaxFutureValidityInMinutes(525600)
+                    .setAllowedClockSkewInSeconds(30)
+                    .setRequireSubject()
+                    .setExpectedAudience("PakGoPay")
+                    .setVerificationKey(new RsaJsonWebKey(JsonUtil.parseJson(publicKeyStr)).getPublicKey())
+                    .build();
+            consumer.processToClaims(token);
+            return false;
+        } catch (InvalidJwtException e) {
+            return e.hasExpired();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Parse token payload without signature verification.
+     * Used only for logging fallback when token is expired/invalid.
+     */
+    public static TokenClaims parseTokenClaimsWithoutVerification(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) {
+                return null;
+            }
+            byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
+            String payloadJson = new String(payloadBytes, StandardCharsets.UTF_8);
+            JwtClaims claims = JwtClaims.parse(payloadJson);
+            TokenClaims result = new TokenClaims();
+            result.account = (String) claims.getClaimValue("account");
+            result.userName = (String) claims.getClaimValue("userName");
+            result.clientIp = (String) claims.getClaimValue("clientIp");
+            result.userAgent = (String) claims.getClaimValue("userAgent");
+            result.jti = claims.getJwtId();
+            return result;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static class TokenClaims {
@@ -129,6 +180,7 @@ public class AuthorizationService {
         public String userName;
         public String clientIp;
         public String userAgent;
+        public String jti;
     }
 
     // 生成公钥 私钥

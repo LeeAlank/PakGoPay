@@ -133,7 +133,33 @@
     </update>
 
     <select id="getOneUserByUserId" resultMap="userResultMap">
-        SELECT * FROM user_info where user_id = #{userId}
+        SELECT
+            m.user_id,
+            m.login_name,
+            m.contact_name,
+            m.contact_email,
+            m.contact_phone,
+            m.login_secret,
+            m.login_secret_expire,
+            m.api_secret,
+            m.api_secret_expire,
+            m.password,
+            m.last_login_ip,
+            m.last_login_time,
+            m.create_time,
+            m.create_by,
+            m.update_time,
+            m.update_by,
+            m.remark,
+            m.icon,
+            m.role_id,
+            m.status,
+            m.login_ips,
+            m.withdrawal_ips,
+            n.role_name
+        FROM user_info m
+        LEFT JOIN role n ON m.role_id = n.role_id
+        WHERE m.user_id = #{userId}
     </select>
 
     <insert id="createUser" parameterType="com.pakgopay.mapper.dto.UserDTO">

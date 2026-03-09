@@ -13,9 +13,9 @@ public interface SystemConfigService {
 
     public CommonResponse listLoginUsers(LoginUserRequest loginUserRequest);
 
-    public CommonResponse updateLoginUserStatus(String userId, Integer status, Integer googleCode, String operatorId);
+    public CommonResponse updateLoginUserStatus(String userId, Integer status, String operatorId);
 
-    public CommonResponse deleteLoginUser(String userId, Integer googleCode, String operatorId);
+    public CommonResponse deleteLoginUser(String userId, String operatorId);
 
     public CommonResponse fetchLoginUserByLoginName(String loginName);
 

@@ -2,8 +2,8 @@ package com.pakgopay.service.transaction;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pakgopay.common.enums.TransactionStatus;
 import com.pakgopay.common.enums.ResultCode;
+import com.pakgopay.common.enums.TransactionStatus;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.entity.transaction.CollectionCreateEntity;
 import com.pakgopay.data.entity.transaction.CollectionQueryEntity;
@@ -12,6 +12,8 @@ import com.pakgopay.data.entity.transaction.PayQueryEntity;
 import com.pakgopay.data.reqeust.transaction.NotifyRequest;
 import com.pakgopay.data.response.http.PaymentHttpResponse;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.Map;
 
@@ -249,8 +251,8 @@ public abstract class OrderHandler {
             return null;
         }
         try {
-            return new java.math.BigDecimal(String.valueOf(amount))
-                    .setScale(2, java.math.RoundingMode.HALF_UP)
+            return new BigDecimal(String.valueOf(amount))
+                    .setScale(2, RoundingMode.HALF_UP)
                     .toPlainString();
         } catch (Exception e) {
             return String.valueOf(amount);

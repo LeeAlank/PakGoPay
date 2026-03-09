@@ -10,7 +10,9 @@ import com.pakgopay.data.response.LoginResponse;
 import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.UserDTO;
 import com.pakgopay.service.common.AuthorizationService;
+import com.pakgopay.service.common.LoginLogService;
 import com.pakgopay.service.common.TurnstileService;
+import com.pakgopay.service.common.UserStatusService;
 import com.pakgopay.service.LoginService;
 import com.pakgopay.thirdUtil.GoogleUtil;
 import com.pakgopay.thirdUtil.RedisUtil;
@@ -20,8 +22,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
-
-import java.time.Instant;
 
 @Slf4j
 @Service
@@ -38,6 +38,12 @@ public class LoginServiceImpl implements LoginService {
 
     @Autowired
     private TurnstileService turnstileService;
+
+    @Autowired
+    private LoginLogService loginLogService;
+
+    @Autowired
+    private UserStatusService userStatusService;
 
     @Override
     public CommonResponse login(LoginRequest loginRequest, HttpServletRequest request) {
@@ -149,10 +155,11 @@ public class LoginServiceImpl implements LoginService {
         String userId = user.getUserId();
         String token = authorizationService.createAccessIdToken(user.getUserId(), userName, ip, userAgent);
         String refreshToken = authorizationService.createRefreshToken(userId, userName, ip, userAgent);
+        AuthorizationService.TokenClaims accessClaims = AuthorizationService.verifyTokenClaims(token);
         // 缓存当前登陆用户 refreshToken 创建的起始时间， 用于刷新token时判断是否需要重新生成refreshToken
         redisUtil.setWithSecondExpire(CommonConstant.REFRESH_TOKEN_START_TIME_PREFIX + userId, String.valueOf(System.currentTimeMillis()), (int) AuthorizationService.refreshTokenExpirationTime);
         // 更新用户最近登陆时间
-        Long now = Instant.now().getEpochSecond();
+        Long now = java.time.Instant.now().getEpochSecond();
         try {
             userMapper.setLastLoginTime(now, userId);
         } catch (Exception e) {
@@ -162,6 +169,7 @@ public class LoginServiceImpl implements LoginService {
         user.setLastLoginTime(null);
         // 缓存用户信息 移除多余的信息
         redisUtil.set(CommonConstant.USER_INFO_KEY_PREFIX + userId, JSON.toJSONString(user));
+        userStatusService.cacheStatus(userId, CommonConstant.ENABLE_STATUS_ENABLE);
         LoginResponse loginResponse = new LoginResponse();
         loginResponse.setCode(ResultCode.SUCCESS.getCode());
         loginResponse.setMessage("login success");
@@ -173,6 +181,7 @@ public class LoginServiceImpl implements LoginService {
         // 清除失败次数
         //redisUtil.remove(CommonConstant.USER_NO_KEY_LOGIN_TIMES + userName);
         redisUtil.remove(CommonConstant.USER_PASSWORD_ERROR_TIMES + userName);
+        loginLogService.writeLogin(user, ip, accessClaims == null ? null : accessClaims.jti);
         return loginResponse;
     }
 
@@ -180,10 +189,18 @@ public class LoginServiceImpl implements LoginService {
     public CommonResponse logout(HttpServletRequest request) {
         // 删除用户登陆缓存信息/RT/
         String header = request.getHeader("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) {
+            return CommonResponse.fail(ResultCode.INVALID_TOKEN);
+        }
         String token = header.substring(7);
-        String userInfo = AuthorizationService.verifyToken(token);
-        String userId = userInfo.split("&")[0];
+        AuthorizationService.TokenClaims claims = AuthorizationService.verifyTokenClaims(token);
+        if (claims == null || claims.account == null || claims.account.isBlank()) {
+            return CommonResponse.fail(ResultCode.INVALID_TOKEN);
+        }
+        String userId = claims.account;
         boolean remove = redisUtil.remove(CommonConstant.USER_INFO_KEY_PREFIX + userId);
+        UserDTO user = userMapper.getOneUserByUserId(userId);
+        loginLogService.writeManualLogout(user, claims.clientIp, claims.jti);
         if (remove) {
             return new CommonResponse(ResultCode.SUCCESS);
         }
@@ -218,11 +235,16 @@ public class LoginServiceImpl implements LoginService {
         // 从refreshToken中获取用户账号
         String userInfos = AuthorizationService.verifyToken(refreshToken);
         if (userInfos == null) {
+            loginLogService.writeRefreshTokenExpired(refreshToken, ip);
             // RT过期，前端需要重新跳转登陆页面让用户重新登陆
             return new CommonResponse(ResultCode.REFRESH_TOKEN_EXPIRE);
         }
         String account = userInfos.split("&")[0];
         String userName = userInfos.split("&")[1];
+        if (!userStatusService.isUserEnabled(account)) {
+            log.warn("refreshAuthToken blocked disabled user, userId={}", account);
+            return CommonResponse.fail(ResultCode.USER_IS_NOT_IN_USE, "user has been locked");
+        }
         // 创建新的token
         String accessToken = authorizationService.createAccessIdToken(account, userName, ip, userAgent);
         // 判断refreshToken是否要过期 即将过期则刷新RT
@@ -242,4 +264,5 @@ public class LoginServiceImpl implements LoginService {
         loginResponse.setUserId(account);
         return loginResponse;
     }
+
 }

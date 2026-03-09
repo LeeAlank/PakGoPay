@@ -54,13 +54,18 @@ public class SystemConfigController {
     }
 
     @GetMapping("/manageLoginUserStatus")
-    public CommonResponse manageLoginUserStatus(String userId, Integer status, Integer googleCode, String operatorId){
-        return systemConfigService.updateLoginUserStatus(userId, status, googleCode, operatorId);
+    public CommonResponse manageLoginUserStatus(
+            String userId,
+            Integer status,
+            @RequestAttribute(CommonConstant.ATTR_USER_ID) String operatorId){
+        return systemConfigService.updateLoginUserStatus(userId, status, operatorId);
     }
 
     @GetMapping("/deleteLoginUser")
-    public CommonResponse deleteLoginUser(String userId, Integer googleCode, String operatorId){
-        return systemConfigService.deleteLoginUser(userId, googleCode, operatorId);
+    public CommonResponse deleteLoginUser(
+            String userId,
+            @RequestAttribute(CommonConstant.ATTR_USER_ID) String operatorId){
+        return systemConfigService.deleteLoginUser(userId, operatorId);
     }
 
     @GetMapping("/loginUserByLoginName")

@@ -1,15 +1,12 @@
 package com.pakgopay.service.impl;
 
 import com.pakgopay.common.enums.ResultCode;
-import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.currencyManagement.CurrencyReponse;
 import com.pakgopay.mapper.CurrencyTypeMapper;
-import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.CurrencyTypeDTO;
 import com.pakgopay.service.CurrencyTypeManagementService;
-import com.pakgopay.thirdUtil.GoogleUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -25,9 +22,6 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
 
     @Autowired
     private CurrencyTypeMapper currencyTypeMapper;
-
-    @Autowired
-    private UserMapper userMapper;
 
     @Override
     public CommonResponse listCurrencyTypes(CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
@@ -54,10 +48,6 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
     @Override
     public CommonResponse createCurrencyType(CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
         try {
-            String operatorInfo = verifyGoogleCode(currencyTypeRequest.getGoogleCode(), request);
-            if (operatorInfo == null) {
-                return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
-            }
             CurrencyTypeDTO currencyTypeDTO = new CurrencyTypeDTO();
             BeanUtils.copyProperties(currencyTypeRequest, currencyTypeDTO);
             Integer addResult = currencyTypeMapper.addNewCurrency(currencyTypeDTO);
@@ -66,8 +56,6 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
             } else {
                 return CommonResponse.fail(ResultCode.FAIL);
             }
-        } catch (PakGoPayException e) {
-            return CommonResponse.fail(e);
         } catch (DuplicateKeyException e) {
             return CommonResponse.fail(ResultCode.FAIL, "currency already exists");
         } catch (Exception e) {
@@ -81,11 +69,7 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
             if (currencyTypeRequest.getId() == null) {
                 return CommonResponse.fail(ResultCode.FAIL, "currency id is required");
             }
-            String operatorInfo = verifyGoogleCode(currencyTypeRequest.getGoogleCode(), request);
-            if (operatorInfo == null) {
-                return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
-            }
-            String operatorName = operatorInfo.split("&")[1];
+            String operatorName = currencyTypeRequest.getUserName();
             CurrencyTypeDTO currencyTypeDTO = new CurrencyTypeDTO();
             BeanUtils.copyProperties(currencyTypeRequest, currencyTypeDTO);
             currencyTypeDTO.setUpdateTime(System.currentTimeMillis() / 1000);
@@ -95,30 +79,10 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
                 return CommonResponse.success(ResultCode.SUCCESS);
             }
             return CommonResponse.fail(ResultCode.FAIL, "update currency type failed");
-        } catch (PakGoPayException e) {
-            return CommonResponse.fail(e);
         } catch (DuplicateKeyException e) {
             return CommonResponse.fail(ResultCode.FAIL, "currency already exists");
         } catch (Exception e) {
             return CommonResponse.fail(ResultCode.FAIL, "update currency type failed " + e.getMessage());
         }
-    }
-
-    public String verifyGoogleCode(Long googleCode, HttpServletRequest request) throws PakGoPayException {
-        String userInfo = GoogleUtil.getUserInfoFromToken(request);
-        if(userInfo==null){
-            throw new PakGoPayException(ResultCode.TOKEN_IS_EXPIRE);
-        }
-        String operator = userInfo.split("&")[0];
-        String secretKey = null;
-        try {
-            secretKey = userMapper.getSecretKeyByUserId(operator);
-        } catch (Exception e) {
-            throw new PakGoPayException(ResultCode.FAIL,"get secret key for operator failed");
-        }
-        if(GoogleUtil.verifyQrCode(secretKey, googleCode)){
-            return userInfo;
-        }
-        return null;
     }
 }

@@ -18,12 +18,14 @@ import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.Role;
 import com.pakgopay.mapper.dto.RoleMenuDTO;
 import com.pakgopay.mapper.dto.UserDTO;
-import com.pakgopay.service.common.AuthorizationService;
+import com.pakgopay.service.common.LoginLogService;
+import com.pakgopay.service.common.UserStatusService;
 import com.pakgopay.service.SystemConfigService;
 import com.pakgopay.thirdUtil.GoogleUtil;
 import com.pakgopay.thirdUtil.RedisUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
@@ -38,17 +40,23 @@ import java.util.List;
 @Service
 public class SystemConfigServiceImpl implements SystemConfigService {
 
-    private final RoleMapper roleMapper;
-    private final UserMapper userMapper;
-    private final RoleMenuMapper roleMenuMapper;
-    private final RedisUtil redisUtil;
+    @Autowired
+    private RoleMapper roleMapper;
 
-    public SystemConfigServiceImpl(RoleMapper roleMapper, UserMapper userMapper, RoleMenuMapper roleMenuMapper, RedisUtil redisUtil) {
-        this.roleMapper = roleMapper;
-        this.userMapper = userMapper;
-        this.roleMenuMapper = roleMenuMapper;
-        this.redisUtil = redisUtil;
-    }
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private RoleMenuMapper roleMenuMapper;
+
+    @Autowired
+    private RedisUtil redisUtil;
+
+    @Autowired
+    private LoginLogService loginLogService;
+
+    @Autowired
+    private UserStatusService userStatusService;
 
     @Override
     public CommonResponse listRoles(String roleName) {
@@ -100,28 +108,20 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     }
 
     @Override
-    public CommonResponse updateLoginUserStatus(String userId, Integer status, Integer googleCode, String operatorId) {
-        // 校验Google
-        String operatorSecretKey = userMapper.getSecretKeyByUserId(operatorId);
-        boolean googleResult = GoogleUtil.verifyQrCode(operatorSecretKey, googleCode);
-        if (!googleResult) {
-            return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
-        }
+    public CommonResponse updateLoginUserStatus(String userId, Integer status, String operatorId) {
         int stopResult = userMapper.stopLoginUser(userId, status);
         if (stopResult == 0) {
             return CommonResponse.fail(ResultCode.FAIL, "stop login user failed");
+        }
+        userStatusService.applyStatusUpdate(userId, status);
+        if (Integer.valueOf(0).equals(status)) {
+            loginLogService.writeKickedLogout(userId, operatorId);
         }
         return CommonResponse.success(ResultCode.SUCCESS);
     }
 
     @Override
-    public CommonResponse deleteLoginUser(String userId, Integer googleCode, String operatorId) {
-
-        String operatorKey = userMapper.getSecretKeyByUserId(operatorId);
-
-        if(!GoogleUtil.verifyQrCode(operatorKey, googleCode)){
-            return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
-        }
+    public CommonResponse deleteLoginUser(String userId, String operatorId) {
         // the super user is not allowed to delete
         UserDTO userInfo = userMapper.getOneUserByUserId(userId);
         if (userInfo == null) {
@@ -147,13 +147,11 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     @Override
     @Transactional
     public CommonResponse createRole(AddRoleRequest addRoleRequest, HttpServletRequest request) {
-        Long googleCode = addRoleRequest.getGoogleCode();
         try {
-            String userInfo = verifyGoogleCode(googleCode, request);
-            if (userInfo == null) {
-                return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
+            String operatorName = resolveOperatorNameFromRequest(request);
+            if (!StringUtils.hasText(operatorName)) {
+                return CommonResponse.fail(ResultCode.INVALID_TOKEN, ResultCode.INVALID_TOKEN.getMessage());
             }
-            String operatorName = userInfo.split("&")[1];
             Role role = new Role();
             role.setRoleName(addRoleRequest.getRoleName());
             role.setCreateTime(Instant.now().getEpochSecond());
@@ -210,13 +208,11 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     @Override
     @Transactional
     public CommonResponse updateRole(ModifyRoleRequest modifyRoleRequest, HttpServletRequest request) {
-        String operatorInfo = null;
         try {
-            operatorInfo = verifyGoogleCode(modifyRoleRequest.getGoogleCode(), request);
-            if (operatorInfo == null) {
-                return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
+            String operatorName = resolveOperatorNameFromRequest(request);
+            if (!StringUtils.hasText(operatorName)) {
+                return CommonResponse.fail(ResultCode.INVALID_TOKEN, ResultCode.INVALID_TOKEN.getMessage());
             }
-            String operatorName = operatorInfo.split("&")[1];
             List<RoleMenuDTO> roleMenuDTOS = new ArrayList<>();
             modifyRoleRequest.getMenuList().forEach(addMenuId -> {
                 RoleMenuDTO roleMenuDTO = new RoleMenuDTO();
@@ -244,30 +240,20 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         }
     }
 
-    public String verifyGoogleCode(Long googleCode, HttpServletRequest request) throws PakGoPayException {
-        String header = request.getHeader("Authorization");
-        String token = header.substring(7);
-        String userInfo = AuthorizationService.verifyToken(token);
-        String operator = userInfo.split("&")[0];
-        String secretKey = null;
-        try {
-            secretKey = userMapper.getSecretKeyByUserId(operator);
-        } catch (Exception e) {
-            throw new PakGoPayException(ResultCode.FAIL,"get secret key for operator failed");
+    private String resolveOperatorNameFromRequest(HttpServletRequest request) {
+        if (request == null) {
+            return null;
         }
-        if(GoogleUtil.verifyQrCode(secretKey, googleCode)){
-            return userInfo;
-        }
-        return null;
+        return (String) request.getAttribute(CommonConstant.ATTR_USER_NAME);
     }
 
     @Override
     @Transactional
     public CommonResponse deleteRole(DeleteRoleRequest deleteRoleRequest, HttpServletRequest request) {
         try {
-            String userInfo = verifyGoogleCode(deleteRoleRequest.getGoogleCode(), request);
-            if (userInfo == null) {
-                return CommonResponse.fail(ResultCode.CODE_IS_EXPIRE);
+            String operatorName = resolveOperatorNameFromRequest(request);
+            if (!StringUtils.hasText(operatorName)) {
+                return CommonResponse.fail(ResultCode.INVALID_TOKEN, ResultCode.INVALID_TOKEN.getMessage());
             }
             Integer deleteRole = roleMapper.deleteRole(deleteRoleRequest.getRoleId());
             if (deleteRole == 0) {

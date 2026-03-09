@@ -6,12 +6,14 @@ import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.service.common.AuthorizationService;
 import com.pakgopay.service.common.AuthorizationService.TokenClaims;
+import com.pakgopay.service.common.UserStatusService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -26,6 +28,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     private static final String TRACE_ID = "traceId";
     //    private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+
+    @Autowired
+    private UserStatusService userStatusService;
 
     public JwtRequestFilter(UserDetailsService userDetailsService) {
 //        this.jwtUtils = jwtUtils;
@@ -72,6 +77,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     return;
                 }
                 String userId = claims.account;
+                // Block disabled users immediately, even if token is still valid.
+                if (!userStatusService.isUserEnabled(userId)) {
+                    logWarn(logEnabled, "jwt filter blocked disabled user, uri={}, userId={}", request.getRequestURI(), userId);
+                    writeError(response, ResultCode.SC_UNAUTHORIZED);
+                    return;
+                }
                 request.setAttribute(CommonConstant.ATTR_USER_ID, userId);
                 String userName = claims.userName;
                 request.setAttribute(CommonConstant.ATTR_USER_NAME, userName);
@@ -166,4 +177,5 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         CommonResponse<Void> body = CommonResponse.fail(code, code.getMessage());
         response.getWriter().write(JSON.toJSONString(body));
     }
+
 }
