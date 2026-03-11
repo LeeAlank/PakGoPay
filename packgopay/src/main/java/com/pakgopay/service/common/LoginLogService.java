@@ -61,7 +61,7 @@ public class LoginLogService {
             if (StringUtils.hasText(claims.jti)) {
                 Integer existed = loginLogMapper.countByTokenJtiAndEventType(claims.jti, 2);
                 if (existed != null && existed > 0) {
-                    log.info("writeRefreshTokenExpired skip duplicate, tokenJti={}", claims.jti);
+                    log.warn("writeRefreshTokenExpired skip duplicate, tokenJti={}", claims.jti);
                     return;
                 }
             }
@@ -72,7 +72,7 @@ public class LoginLogService {
             }
             long now = Instant.now().getEpochSecond();
             write(user, StringUtils.hasText(fallbackIp) ? fallbackIp : claims.clientIp, 2, now, claims.jti, "expired");
-            log.info("refresh token expired logout logged, userId={}, tokenJti={}", user.getUserId(), claims.jti);
+            log.warn("refresh token expired logout logged, userId={}, tokenJti={}", user.getUserId(), claims.jti);
         } catch (Exception e) {
             log.warn("writeRefreshTokenExpired failed, message={}", e.getMessage());
         }

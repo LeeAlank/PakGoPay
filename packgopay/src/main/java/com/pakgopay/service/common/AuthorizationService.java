@@ -97,7 +97,11 @@ public class AuthorizationService {
                 return account+"&"+userName+"&"+requestIp+"&"+userAgent;
             }
         } catch (JoseException | InvalidJwtException e) {
-            logger.error("verify token failed: {}", e.getMessage());
+            if (e instanceof InvalidJwtException && ((InvalidJwtException) e).hasExpired()) {
+                logger.warn("verify token expired: {}", e.getMessage());
+            } else {
+                logger.error("verify token failed: {}", e.getMessage());
+            }
         }
         return null;
     }
@@ -123,7 +127,11 @@ public class AuthorizationService {
                 return result;
             }
         } catch (JoseException | InvalidJwtException | MalformedClaimException e) {
-            logger.error("verify token failed: {}", e.getMessage());
+            if (e instanceof InvalidJwtException && ((InvalidJwtException) e).hasExpired()) {
+                logger.warn("verify token expired: {}", e.getMessage());
+            } else {
+                logger.error("verify token failed: {}", e.getMessage());
+            }
         }
         return null;
     }
