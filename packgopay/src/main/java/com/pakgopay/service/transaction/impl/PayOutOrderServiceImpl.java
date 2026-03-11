@@ -8,11 +8,7 @@ import com.pakgopay.data.entity.OrderQueryEntity;
 import com.pakgopay.data.entity.TransactionInfo;
 import com.pakgopay.data.entity.transaction.PayCreateEntity;
 import com.pakgopay.data.entity.transaction.PayQueryEntity;
-import com.pakgopay.data.reqeust.transaction.NotifyRequest;
-import com.pakgopay.data.reqeust.transaction.OrderQueryRequest;
-import com.pakgopay.data.reqeust.transaction.OrderReverseRequest;
-import com.pakgopay.data.reqeust.transaction.PayOutOrderRequest;
-import com.pakgopay.data.reqeust.transaction.QueryOrderApiRequest;
+import com.pakgopay.data.reqeust.transaction.*;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.PayOutOrderPageResponse;
 import com.pakgopay.data.response.http.PaymentHttpResponse;
@@ -22,7 +18,6 @@ import com.pakgopay.mapper.dto.MerchantInfoDto;
 import com.pakgopay.mapper.dto.PayOrderDto;
 import com.pakgopay.mapper.dto.PaymentDto;
 import com.pakgopay.service.MerchantService;
-import com.pakgopay.service.common.OrderFlowLogService;
 import com.pakgopay.service.common.OrderFlowLogSession;
 import com.pakgopay.service.impl.ChannelPaymentServiceImpl;
 import com.pakgopay.service.transaction.*;
@@ -49,9 +44,6 @@ public class PayOutOrderServiceImpl extends BaseOrderService implements PayOutOr
 
     @Autowired
     private ChannelPaymentServiceImpl channelPaymentService;
-
-    @Autowired
-    private OrderFlowLogService orderFlowLogService;
 
     @Autowired
     private PayOrderMapper payOrderMapper;
@@ -204,7 +196,9 @@ public class PayOutOrderServiceImpl extends BaseOrderService implements PayOutOr
                 Map<String, Object> responseBody = buildPayOutResponse(payOrderDto, null);
                 log.info("{} test_without_external success, transactionNo={}", scene, payOrderDto.getTransactionNo());
                 createdSuccess = true;
-                return CommonResponse.success(responseBody);
+                return recordMerchantCreateResponse(
+                        payOrderDto.getTransactionNo(),
+                        CommonResponse.success(responseBody));
             }
 
             // 9. dispatch payout request to handler
@@ -227,7 +221,9 @@ public class PayOutOrderServiceImpl extends BaseOrderService implements PayOutOr
             Map<String, Object> responseBody = buildPayOutResponse(payOrderDto, handlerResponse);
             log.info("{} success, transactionNo={}", scene, payOrderDto.getTransactionNo());
             createdSuccess = true;
-            return CommonResponse.success(responseBody);
+            return recordMerchantCreateResponse(
+                    payOrderDto.getTransactionNo(),
+                    CommonResponse.success(responseBody));
         } catch (Exception e) {
             if (frozen) {
                 try {
@@ -249,10 +245,11 @@ public class PayOutOrderServiceImpl extends BaseOrderService implements PayOutOr
                         payOrderRequest.getMerchantOrderNo());
             }
             log.error("{} failed, message {}", scene, e.getMessage());
-            if (e instanceof PakGoPayException pe) {
-                throw pe;
-            }
-            throw new PakGoPayException(ResultCode.FAIL, e.getMessage());
+            PakGoPayException pe = e instanceof PakGoPayException p
+                    ? p
+                    : new PakGoPayException(ResultCode.FAIL, e.getMessage());
+            CommonResponse<Void> failResponse = CommonResponse.fail(pe.getCode(), pe.getMessage());
+            return recordMerchantCreateResponse(transactionInfo.getTransactionNo(), failResponse);
         }
     }
 

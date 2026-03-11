@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pakgopay.common.constant.CommonConstant;
+import com.pakgopay.common.enums.OrderFlowStepEnum;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.enums.TransactionStatus;
 import com.pakgopay.common.exception.PakGoPayException;
@@ -11,6 +12,7 @@ import com.pakgopay.data.entity.OrderQueryEntity;
 import com.pakgopay.data.entity.account.AdjustmentStatementRecord;
 import com.pakgopay.data.entity.transaction.OrderTimeoutMessage;
 import com.pakgopay.data.reqeust.transaction.OrderQueryRequest;
+import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.http.PaymentHttpResponse;
 import com.pakgopay.mapper.MerchantInfoMapper;
 import com.pakgopay.mapper.PaymentMapper;
@@ -18,6 +20,7 @@ import com.pakgopay.mapper.dto.*;
 import com.pakgopay.service.common.SendDmqMessage;
 import com.pakgopay.service.BalanceService;
 import com.pakgopay.service.common.AccountStatementService;
+import com.pakgopay.service.common.OrderFlowLogService;
 import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.timer.ReportTask;
 import com.pakgopay.util.CommonUtil;
@@ -95,6 +98,9 @@ public abstract class BaseOrderService {
 
     @Autowired
     protected AccountStatementService accountStatementService;
+
+    @Autowired
+    protected OrderFlowLogService orderFlowLogService;
 
     @Autowired
     @Qualifier("pakGoPayExecutor")
@@ -486,6 +492,35 @@ public abstract class BaseOrderService {
             return base;
         }
         return base + "|" + requestRemark;
+    }
+
+    protected void logMerchantCreateResponse(OrderFlowLogService flowLogService,
+                                             String transactionNo,
+                                             boolean success,
+                                             Object payload) {
+        if (flowLogService == null || transactionNo == null || transactionNo.isBlank()) {
+            return;
+        }
+        if (transactionNo.startsWith(CommonConstant.COLLECTION_PREFIX)) {
+            flowLogService.logCollection(transactionNo, OrderFlowStepEnum.MERCHANT_CREATE_RESPONSE, success, payload);
+            return;
+        }
+        if (transactionNo.startsWith(CommonConstant.PAYOUT_PREFIX)) {
+            flowLogService.logPayout(transactionNo, OrderFlowStepEnum.MERCHANT_CREATE_RESPONSE, success, payload);
+            return;
+        }
+        log.warn("logMerchantCreateResponse skipped: unknown transaction prefix, transactionNo={}", transactionNo);
+    }
+
+    protected CommonResponse recordMerchantCreateResponse(String transactionNo,
+                                                          CommonResponse response) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("code", response == null ? null : response.getCode());
+        payload.put("message", response == null ? null : response.getMessage());
+        payload.put("data", response == null ? null : response.getData());
+        boolean success = response != null && ResultCode.SUCCESS.getCode().equals(response.getCode());
+        logMerchantCreateResponse(orderFlowLogService, transactionNo, success, payload);
+        return response;
     }
 
     /**

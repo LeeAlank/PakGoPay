@@ -8,12 +8,7 @@ import com.pakgopay.data.entity.OrderQueryEntity;
 import com.pakgopay.data.entity.TransactionInfo;
 import com.pakgopay.data.entity.transaction.CollectionCreateEntity;
 import com.pakgopay.data.entity.transaction.CollectionQueryEntity;
-import com.pakgopay.data.reqeust.transaction.CollectionOrderRequest;
-import com.pakgopay.data.reqeust.transaction.NotifyRequest;
-import com.pakgopay.data.reqeust.transaction.OrderQueryRequest;
-import com.pakgopay.data.reqeust.transaction.OrderReverseRequest;
-import com.pakgopay.data.reqeust.transaction.QueryBalanceApiRequest;
-import com.pakgopay.data.reqeust.transaction.QueryOrderApiRequest;
+import com.pakgopay.data.reqeust.transaction.*;
 import com.pakgopay.data.response.CollectionOrderPageResponse;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.http.PaymentHttpResponse;
@@ -24,7 +19,6 @@ import com.pakgopay.mapper.dto.MerchantInfoDto;
 import com.pakgopay.mapper.dto.PaymentDto;
 import com.pakgopay.service.ChannelPaymentService;
 import com.pakgopay.service.MerchantService;
-import com.pakgopay.service.common.OrderFlowLogService;
 import com.pakgopay.service.common.OrderFlowLogSession;
 import com.pakgopay.service.transaction.*;
 import com.pakgopay.util.*;
@@ -37,8 +31,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -52,9 +46,6 @@ public class CollectionOrderServiceImpl extends BaseOrderService implements Coll
 
     @Autowired
     ChannelPaymentService channelPaymentService;
-
-    @Autowired
-    private OrderFlowLogService orderFlowLogService;
 
     @Autowired
     private CollectionOrderMapper collectionOrderMapper;
@@ -172,7 +163,9 @@ public class CollectionOrderServiceImpl extends BaseOrderService implements Coll
             try {
                 int ret = collectionOrderMapper.insert(collectionOrderDto);
                 if (ret <= 0) {
-                    return CommonResponse.fail(ResultCode.DATA_BASE_ERROR, "collection order insert failed");
+                    return recordMerchantCreateResponse(
+                            collectionOrderDto.getTransactionNo(),
+                            CommonResponse.fail(ResultCode.DATA_BASE_ERROR, "collection order insert failed"));
                 }
                 flowSession.flush();
                 log.info("collection order inserted, transactionNo={}", collectionOrderDto.getTransactionNo());
@@ -195,7 +188,9 @@ public class CollectionOrderServiceImpl extends BaseOrderService implements Coll
                 log.info("createCollectionOrder test_without_external success, transactionNo={}",
                         collectionOrderDto.getTransactionNo());
                 createdSuccess = true;
-                return CommonResponse.success(responseBody);
+                return recordMerchantCreateResponse(
+                        collectionOrderDto.getTransactionNo(),
+                        CommonResponse.success(responseBody));
             }
 
             // 9. dispatch collection request to handler
@@ -210,15 +205,19 @@ public class CollectionOrderServiceImpl extends BaseOrderService implements Coll
             if (handlerCode != null && !Integer.valueOf(0).equals(handlerCode)) {
                 markCollectionOrderFailedByDispatch(collectionOrderDto.getTransactionNo(),
                         "channel_request_failed_code_" + handlerCode);
-                return CommonResponse.fail(ResultCode.HTTP_REQUEST_ERROR,
-                        "collection channel request failed, code=" + handlerCode);
+                return recordMerchantCreateResponse(
+                        collectionOrderDto.getTransactionNo(),
+                        CommonResponse.fail(ResultCode.HTTP_REQUEST_ERROR,
+                                "collection channel request failed, code=" + handlerCode));
             }
 
             // 10. build and return create response
             Map<String, Object> responseBody = buildCollectionResponse(collectionOrderDto, handlerResponse);
             log.info("createCollectionOrder success, transactionNo={}", collectionOrderDto.getTransactionNo());
             createdSuccess = true;
-            return CommonResponse.success(responseBody);
+            return recordMerchantCreateResponse(
+                    collectionOrderDto.getTransactionNo(),
+                    CommonResponse.success(responseBody));
         } finally {
             if (!createdSuccess && lockAcquired) {
                 releaseCreateOrderLock(
