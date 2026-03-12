@@ -3,12 +3,15 @@ package com.pakgopay.data.response;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.pakgopay.common.enums.ResultCode;
+import com.pakgopay.common.exception.ErrorMessageSanitizer;
 import com.pakgopay.common.exception.PakGoPayException;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
 
 @Data
+@Slf4j
 public class CommonResponse<T> implements Serializable {
     private Integer code;
     private String message;
@@ -50,14 +53,30 @@ public class CommonResponse<T> implements Serializable {
     }
 
     public static CommonResponse<Void> fail(ResultCode resultCode) {
-        return new CommonResponse<>(resultCode);
+        String rawMessage = resultCode.getMessage();
+        log.error("[ERR_SANITIZE_BEFORE] code={}, rawMessage={}", resultCode.getCode(), rawMessage);
+        String sanitizedMessage = ErrorMessageSanitizer.sanitize(resultCode, rawMessage);
+        log.error("[ERR_SANITIZE_AFTER] code={}, sanitizedMessage={}, replaced={}",
+                resultCode.getCode(), sanitizedMessage, !sanitizedMessage.equals(rawMessage));
+        return new CommonResponse<>(resultCode.getCode(), sanitizedMessage);
     }
 
     public static CommonResponse<Void> fail(ResultCode resultCode, String message) {
-        return new CommonResponse<>(resultCode.getCode(), message);
+        String rawMessage = message;
+        log.error("[ERR_SANITIZE_BEFORE] code={}, rawMessage={}", resultCode.getCode(), rawMessage);
+        String sanitizedMessage = ErrorMessageSanitizer.sanitize(resultCode, rawMessage);
+        log.error("[ERR_SANITIZE_AFTER] code={}, sanitizedMessage={}, replaced={}",
+                resultCode.getCode(), sanitizedMessage, !sanitizedMessage.equals(rawMessage));
+        return new CommonResponse<>(resultCode.getCode(), sanitizedMessage);
     }
 
     public static CommonResponse<Void> fail(PakGoPayException pe) {
-        return new CommonResponse<>(String.valueOf(pe.getCode()),pe.getMessage());
+        ResultCode rc = pe.getCode() == null ? ResultCode.FAIL : pe.getCode();
+        String rawMessage = pe.getMessage();
+        log.error("[ERR_SANITIZE_BEFORE] code={}, rawMessage={}", pe.getErrorCode(), rawMessage);
+        String sanitizedMessage = ErrorMessageSanitizer.sanitize(rc, rawMessage);
+        log.error("[ERR_SANITIZE_AFTER] code={}, sanitizedMessage={}, replaced={}",
+                pe.getErrorCode(), sanitizedMessage, !sanitizedMessage.equals(rawMessage));
+        return new CommonResponse<>(pe.getErrorCode(), sanitizedMessage);
     }
 }
