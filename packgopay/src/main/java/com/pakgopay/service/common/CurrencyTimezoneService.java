@@ -1,27 +1,28 @@
 package com.pakgopay.service.common;
 
 import com.pakgopay.mapper.CurrencyTypeMapper;
+import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.util.CommonUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
 public class CurrencyTimezoneService {
+    private static final String CURRENCY_TIMEZONE_CACHE_PREFIX = "currency:timezone:";
+    private static final int CURRENCY_TIMEZONE_CACHE_SECONDS = 86400;
 
     @Autowired
     private CurrencyTypeMapper currencyTypeMapper;
-
-    private final Map<String, ZoneId> zoneCache = new ConcurrentHashMap<>();
+    @Autowired
+    private RedisUtil redisUtil;
 
     /**
      * Resolve zone by currency code:
-     * 1) currency.timezone from DB
+     * 1) Redis cache
      * 2) existing fallback mapping in CommonUtil
      */
     public ZoneId resolveZoneIdByCurrency(String currency) {
@@ -29,7 +30,32 @@ public class CurrencyTimezoneService {
             return ZoneId.systemDefault();
         }
         String currencyKey = currency.trim().toUpperCase();
-        return zoneCache.computeIfAbsent(currencyKey, this::loadZoneIdByCurrency);
+        String cacheKey = buildCacheKey(currencyKey);
+        String cachedTimezone = redisUtil.getValue(cacheKey);
+        if (cachedTimezone != null && !cachedTimezone.isBlank()) {
+            try {
+                return ZoneId.of(cachedTimezone.trim());
+            } catch (Exception e) {
+                log.warn("invalid timezone in redis cache, currency={}, timezone={}, message={}",
+                        currencyKey, cachedTimezone, e.getMessage());
+                redisUtil.remove(cacheKey);
+            }
+        }
+        ZoneId zoneId = loadZoneIdByCurrency(currencyKey);
+        redisUtil.setWithSecondExpire(cacheKey, zoneId.getId(), CURRENCY_TIMEZONE_CACHE_SECONDS);
+        return zoneId;
+    }
+
+    public void refreshCurrencyTimezoneCache(String currency) {
+        if (currency == null || currency.isBlank()) {
+            return;
+        }
+        String currencyKey = currency.trim().toUpperCase();
+        String cacheKey = buildCacheKey(currencyKey);
+        redisUtil.remove(cacheKey);
+        ZoneId zoneId = loadZoneIdByCurrency(currencyKey);
+        redisUtil.setWithSecondExpire(cacheKey, zoneId.getId(), CURRENCY_TIMEZONE_CACHE_SECONDS);
+        log.info("currency timezone cache refreshed, currency={}, zoneId={}", currencyKey, zoneId.getId());
     }
 
     private ZoneId loadZoneIdByCurrency(String currency) {
@@ -47,5 +73,9 @@ public class CurrencyTimezoneService {
             log.warn("load timezone by currency failed, currency={}, message={}", currency, e.getMessage());
         }
         return CommonUtil.resolveZoneIdByCurrency(currency);
+    }
+
+    private String buildCacheKey(String currency) {
+        return CURRENCY_TIMEZONE_CACHE_PREFIX + currency;
     }
 }

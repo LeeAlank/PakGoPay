@@ -11,18 +11,19 @@
         <result column="operate_name" property="operateName" javaType="java.lang.String"/>
         <result column="operate_params" property="operateParams" javaType="java.lang.String"/>
         <result column="operate_user_id" property="operateUserId" javaType="java.lang.String"/>
+        <result column="operate_user_name" property="operateUserName" javaType="java.lang.String"/>
         <result column="create_time" property="createTime" javaType="java.lang.Long"/>
         <result column="update_time" property="updateTime" javaType="java.lang.Long"/>
     </resultMap>
 
     <sql id="BaseColumns">
-        id,
-        operate_type,
-        operate_name,
-        operate_params,
-        operate_user_id,
-        create_time,
-        update_time
+        ol.id AS id,
+        ol.operate_type AS operate_type,
+        ol.operate_name AS operate_name,
+        ol.operate_params AS operate_params,
+        ol.operate_user_id AS operate_user_id,
+        ol.create_time AS create_time,
+        ol.update_time AS update_time
     </sql>
 
     <insert id="insert" parameterType="com.pakgopay.mapper.dto.OperateLogDto">
@@ -46,32 +47,34 @@
     <sql id="OperateLogWhere">
         <where>
             <if test="operateType != null">
-                AND operate_type = #{operateType}
+                AND ol.operate_type = #{operateType}
             </if>
             <if test="operateUserId != null and operateUserId != ''">
-                AND operate_user_id = #{operateUserId}
+                AND ol.operate_user_id = #{operateUserId}
             </if>
             <if test="startTime != null">
-                AND create_time &gt;= #{startTime}
+                AND ol.create_time &gt;= #{startTime}
             </if>
             <if test="endTime != null">
-                AND create_time &lt;= #{endTime}
+                AND ol.create_time &lt;= #{endTime}
             </if>
         </where>
     </sql>
 
     <select id="countByQuery" resultType="java.lang.Integer">
         SELECT COUNT(1)
-        FROM operate_log
+        FROM operate_log ol
         <include refid="OperateLogWhere"/>
     </select>
 
     <select id="pageByQuery" resultMap="OperateLogResultMap">
         SELECT
-            <include refid="BaseColumns"/>
-        FROM operate_log
+            <include refid="BaseColumns"/>,
+            ui.login_name AS operate_user_name
+        FROM operate_log ol
+        LEFT JOIN user_info ui ON ui.user_id = ol.operate_user_id
         <include refid="OperateLogWhere"/>
-        ORDER BY create_time DESC, id DESC
+        ORDER BY ol.create_time DESC, ol.id DESC
         LIMIT #{pageSize} OFFSET #{offSet}
     </select>
 
