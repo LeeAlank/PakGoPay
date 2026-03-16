@@ -7,6 +7,7 @@ import com.pakgopay.data.response.currencyManagement.CurrencyReponse;
 import com.pakgopay.mapper.CurrencyTypeMapper;
 import com.pakgopay.mapper.dto.CurrencyTypeDTO;
 import com.pakgopay.service.CurrencyTypeManagementService;
+import com.pakgopay.service.common.CurrencyTimezoneService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -23,6 +24,8 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
 
     @Autowired
     private CurrencyTypeMapper currencyTypeMapper;
+    @Autowired
+    private CurrencyTimezoneService currencyTimezoneService;
 
     @Override
     public CommonResponse listCurrencyTypes(CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
@@ -55,6 +58,7 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
             BeanUtils.copyProperties(currencyTypeRequest, currencyTypeDTO);
             Integer addResult = currencyTypeMapper.addNewCurrency(currencyTypeDTO);
             if (addResult == 1) {
+                currencyTimezoneService.refreshCurrencyTimezoneCache(currencyTypeDTO.getCurrencyType());
                 return CommonResponse.success(ResultCode.SUCCESS);
             } else {
                 return CommonResponse.fail(ResultCode.FAIL);
@@ -74,6 +78,7 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
             if (currencyTypeRequest.getId() == null) {
                 return CommonResponse.fail(ResultCode.FAIL, "currency id is required");
             }
+            CurrencyTypeDTO before = currencyTypeMapper.getCurrencyById(currencyTypeRequest.getId());
             String timezone = normalizeTimezone(currencyTypeRequest.getTimezone());
             String operatorName = currencyTypeRequest.getUserName();
             CurrencyTypeDTO currencyTypeDTO = new CurrencyTypeDTO();
@@ -84,6 +89,12 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
             currencyTypeDTO.setUpdateBy(operatorName);
             Integer updateResult = currencyTypeMapper.updateCurrencyType(currencyTypeDTO);
             if (updateResult == 1) {
+                if (before != null && before.getCurrencyType() != null) {
+                    currencyTimezoneService.refreshCurrencyTimezoneCache(before.getCurrencyType());
+                }
+                if (currencyTypeDTO.getCurrencyType() != null) {
+                    currencyTimezoneService.refreshCurrencyTimezoneCache(currencyTypeDTO.getCurrencyType());
+                }
                 return CommonResponse.success(ResultCode.SUCCESS);
             }
             return CommonResponse.fail(ResultCode.FAIL, "update currency type failed");

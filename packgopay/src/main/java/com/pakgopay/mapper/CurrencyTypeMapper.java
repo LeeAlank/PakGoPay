@@ -16,5 +16,7 @@ public interface CurrencyTypeMapper {
 
     Integer updateCurrencyType(CurrencyTypeDTO currencyTypeDTO);
 
+    CurrencyTypeDTO getCurrencyById(Integer id);
+
     String getTimezoneByCurrencyType(String currencyType);
 }
