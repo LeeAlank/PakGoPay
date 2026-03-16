@@ -42,6 +42,7 @@ public enum OperateInterfaceEnum {
 
     // System config
     CREATE_USER(3, "Create User"),
+    EDIT_LOGIN_USER(1, "Edit User"),
     MANAGE_LOGIN_USER_STATUS(1, "Update User Status"),
     DELETE_LOGIN_USER(2, "Delete User"),
     ADD_ROLE(3, "Create Role"),

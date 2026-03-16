@@ -75,6 +75,7 @@ public class WebhookController {
     private final RedisUtil redisUtil;
     private final OrderInterventionTelegramNotifier orderInterventionTelegramNotifier;
     private final TelegramOrderNoRecognizer telegramOrderNoRecognizer;
+    private static final int ORDER_PENDING_EXPIRE_SECONDS = 600;
     private static final int WITHDRAW_PENDING_EXPIRE_SECONDS = 600;
 
     public WebhookController(TelegramService telegramService,
@@ -166,6 +167,9 @@ public class WebhookController {
                 return CommonResponse.success("ignore");
             }
             String trimmed = text.trim();
+            if (tryHandleOrderRemark(message, chatId, trimmed)) {
+                return CommonResponse.success("ok");
+            }
             if (tryHandleWithdrawRemark(message, chatId, trimmed)) {
                 return CommonResponse.success("ok");
             }
@@ -363,36 +367,50 @@ public class WebhookController {
                 return CommonResponse.success("ignore");
             }
 
+            String merchantNo;
             if ("c".equals(type)) {
-                String merchantNo = getCollectionMerchantNo(transactionNo);
+                merchantNo = getCollectionMerchantNo(transactionNo);
                 if (merchantNo == null) {
                     telegramService.answerCallbackQuery(callbackQueryId, "order not found", true);
                     return CommonResponse.success("not_found");
                 }
-                NotifyRequest request = new NotifyRequest();
-                request.setTransactionNo(transactionNo);
-                request.setMerchantNo(merchantNo);
-                request.setStatus(status);
-                collectionOrderService.manualHandleNotify(request);
             } else if ("p".equals(type)) {
-                String merchantNo = getPayoutMerchantNo(transactionNo);
+                merchantNo = getPayoutMerchantNo(transactionNo);
                 if (merchantNo == null) {
                     telegramService.answerCallbackQuery(callbackQueryId, "order not found", true);
                     return CommonResponse.success("not_found");
                 }
-                NotifyRequest request = new NotifyRequest();
-                request.setTransactionNo(transactionNo);
-                request.setMerchantNo(merchantNo);
-                request.setStatus(status);
-                payOutOrderService.manualHandleNotify(request);
             } else {
                 telegramService.answerCallbackQuery(callbackQueryId, "unsupported order type", true);
                 return CommonResponse.success("ignore");
             }
 
-            telegramService.answerCallbackQuery(callbackQueryId, "done", false);
-            updateCallbackMessage(callbackQuery, status, from);
-            return CommonResponse.success("ok");
+            JSONObject pending = new JSONObject();
+            pending.put("type", type);
+            pending.put("transactionNo", transactionNo);
+            pending.put("merchantNo", merchantNo);
+            pending.put("status", status);
+            try {
+                JSONObject message = callbackQuery.getJSONObject("message");
+                if (message != null) {
+                    JSONObject chat = message.getJSONObject("chat");
+                    if (chat != null) {
+                        pending.put("chatId", String.valueOf(chat.get("id")));
+                    }
+                    pending.put("messageId", message.getLong("message_id"));
+                    pending.put("oldText", message.getString("text"));
+                }
+            } catch (Exception ignored) {
+                // keep best-effort metadata only
+            }
+            redisUtil.setWithSecondExpire(
+                    buildOrderPendingKey(fromUserId),
+                    pending.toJSONString(),
+                    ORDER_PENDING_EXPIRE_SECONDS);
+            telegramService.answerCallbackQuery(callbackQueryId, "请发送说明: /remark 你的说明", false);
+            telegramService.sendMessageTo(resolveCallbackChatId(callbackQuery),
+                    "请填写说明后提交超时订单，格式：/remark 你的说明");
+            return CommonResponse.success("pending_remark");
         } catch (PakGoPayException e) {
             log.error("telegram callback handle failed, code={}, message={}", e.getErrorCode(), e.getMessage());
             telegramService.answerCallbackQuery(callbackQueryId, "failed: " + e.getMessage(), true);
@@ -401,6 +419,102 @@ public class WebhookController {
             log.error("telegram callback handle unexpected failed: {}", e.getMessage());
             telegramService.answerCallbackQuery(callbackQueryId, "failed", true);
             return CommonResponse.fail(ResultCode.FAIL, e.getMessage());
+        }
+    }
+
+    private boolean tryHandleOrderRemark(JSONObject message, String chatId, String trimmedText) {
+        if (trimmedText == null || trimmedText.isEmpty()) {
+            return false;
+        }
+        JSONObject from = message.getJSONObject("from");
+        String fromUserId = from == null ? null : String.valueOf(from.get("id"));
+        if (fromUserId == null) {
+            telegramService.sendMessageTo(chatId, "用户信息异常，无法处理。");
+            return true;
+        }
+        String pendingRaw = redisUtil.getValue(buildOrderPendingKey(fromUserId));
+        if ((pendingRaw == null || pendingRaw.isEmpty()) && !trimmedText.startsWith("/remark")) {
+            return false;
+        }
+        if (pendingRaw == null || pendingRaw.isEmpty()) {
+            telegramService.sendMessageTo(chatId, "当前没有待处理的超时订单操作。");
+            return true;
+        }
+
+        String remark;
+        if (trimmedText.startsWith("/remark")) {
+            remark = trimmedText.replaceFirst("^/remark\\s*", "").trim();
+        } else if (trimmedText.startsWith("/")) {
+            telegramService.sendMessageTo(chatId, "请填写说明后提交超时订单，格式：/remark 你的说明");
+            return true;
+        } else {
+            remark = trimmedText.trim();
+        }
+        if (remark.isEmpty()) {
+            telegramService.sendMessageTo(chatId, "说明不能为空，请使用：/remark 你的说明");
+            return true;
+        }
+
+        try {
+            JSONObject pending = JSON.parseObject(pendingRaw);
+            String type = pending.getString("type");
+            String transactionNo = pending.getString("transactionNo");
+            String merchantNo = pending.getString("merchantNo");
+            String status = pending.getString("status");
+            if (type == null || transactionNo == null || merchantNo == null || status == null) {
+                telegramService.sendMessageTo(chatId, "待处理数据异常，请重新点击按钮。");
+                return true;
+            }
+
+            NotifyRequest request = new NotifyRequest();
+            request.setTransactionNo(transactionNo);
+            request.setMerchantNo(merchantNo);
+            request.setStatus(status);
+            request.setUserName("telegram:" + fromUserId + "|remark:" + remark);
+            if ("c".equals(type)) {
+                collectionOrderService.manualHandleNotify(request);
+            } else if ("p".equals(type)) {
+                payOutOrderService.manualHandleNotify(request);
+            } else {
+                telegramService.sendMessageTo(chatId, "待处理订单类型不支持。");
+                return true;
+            }
+            redisUtil.remove(buildOrderPendingKey(fromUserId));
+            telegramService.sendMessageTo(chatId, "超时订单处理成功: " + transactionNo);
+            updateOrderCallbackMessageFromPending(pending, status, fromUserId, remark);
+        } catch (PakGoPayException e) {
+            log.error("telegram timeout order remark handle failed, code={}, message={}", e.getErrorCode(), e.getMessage());
+            telegramService.sendMessageTo(chatId, "超时订单处理失败: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("telegram timeout order remark handle failed: {}", e.getMessage());
+            telegramService.sendMessageTo(chatId, "超时订单处理失败，请稍后重试。");
+        }
+        return true;
+    }
+
+    private String buildOrderPendingKey(String telegramUserId) {
+        return "tg:ord:pending:" + telegramUserId;
+    }
+
+    private void updateOrderCallbackMessageFromPending(JSONObject pending, String status, String operator, String remark) {
+        try {
+            String chatId = pending.getString("chatId");
+            Long messageId = pending.getLong("messageId");
+            String oldText = pending.getString("oldText");
+            if (chatId == null || messageId == null) {
+                return;
+            }
+            String actionText = "2".equals(status) ? "回调成功" : "回调失败";
+            String newText = (oldText == null ? "" : oldText)
+                    + "\n\n处理结果: " + actionText
+                    + "\n处理人: " + operator
+                    + "\n处理说明: " + remark
+                    + "\n处理时间: " + Instant.now().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            Map<String, Object> disabledReplyMarkup = new HashMap<>();
+            disabledReplyMarkup.put("inline_keyboard", new ArrayList<>());
+            telegramService.editMessageText(chatId, messageId, newText, disabledReplyMarkup);
+        } catch (Exception e) {
+            log.warn("updateOrderCallbackMessageFromPending failed: {}", e.getMessage());
         }
     }
 

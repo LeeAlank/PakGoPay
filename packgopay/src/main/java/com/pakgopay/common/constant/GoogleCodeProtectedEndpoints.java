@@ -12,6 +12,7 @@ public final class GoogleCodeProtectedEndpoints {
 
         // System config (user/role management)
         map.put("POST /pakGoPay/server/SystemConfig/createUser", "create user");
+        map.put("POST /pakGoPay/server/SystemConfig/editUser", "edit user");
         map.put("GET /pakGoPay/server/SystemConfig/manageLoginUserStatus", "update user status");
         map.put("GET /pakGoPay/server/SystemConfig/deleteLoginUser", "delete user");
         map.put("POST /pakGoPay/server/SystemConfig/addRole", "add role");

@@ -34,6 +34,8 @@ public interface UserMapper {
 
      int createUser(@Param(value="user") UserDTO user);
 
+     int updateUserByUserId(@Param(value="user") UserDTO user);
+
      String getSecretKeyByUserId(@Param(value = "userId") String userId);
 
      int stopLoginUser(@Param(value = "userId") String userId, @Param(value = "status") Integer status);

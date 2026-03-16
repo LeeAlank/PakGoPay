@@ -75,10 +75,11 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
                 return CommonResponse.fail(ResultCode.FAIL, "currency id is required");
             }
             String timezone = normalizeTimezone(currencyTypeRequest.getTimezone());
-            currencyTypeRequest.setTimezone(timezone);
             String operatorName = currencyTypeRequest.getUserName();
             CurrencyTypeDTO currencyTypeDTO = new CurrencyTypeDTO();
-            BeanUtils.copyProperties(currencyTypeRequest, currencyTypeDTO);
+            currencyTypeDTO.setId(currencyTypeRequest.getId());
+            currencyTypeDTO.setCurrencyAccuracy(currencyTypeRequest.getCurrencyAccuracy());
+            currencyTypeDTO.setTimezone(timezone);
             currencyTypeDTO.setUpdateTime(System.currentTimeMillis() / 1000);
             currencyTypeDTO.setUpdateBy(operatorName);
             Integer updateResult = currencyTypeMapper.updateCurrencyType(currencyTypeDTO);

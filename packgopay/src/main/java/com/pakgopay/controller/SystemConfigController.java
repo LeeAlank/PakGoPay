@@ -7,6 +7,7 @@ import com.pakgopay.data.reqeust.CreateUserRequest;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
+import com.pakgopay.data.reqeust.systemConfig.EditUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
@@ -45,6 +46,16 @@ public class SystemConfigController {
     public CommonResponse createLoginUser(@RequestBody CreateUserRequest createUserRequest){
         CommonResponse response = userService.createLoginUser(createUserRequest);
         operateLogService.write(OperateInterfaceEnum.CREATE_USER, createUserRequest.getOperatorId(), createUserRequest);
+        return response;
+    }
+
+    @PostMapping("/editUser")
+    public CommonResponse editLoginUser(
+            @RequestBody @Valid EditUserRequest editUserRequest,
+            @RequestAttribute(CommonConstant.ATTR_USER_ID) String operatorId){
+        editUserRequest.setOperatorId(operatorId);
+        CommonResponse response = userService.editLoginUser(editUserRequest);
+        operateLogService.write(OperateInterfaceEnum.EDIT_LOGIN_USER, operatorId, editUserRequest);
         return response;
     }
 

@@ -3,6 +3,7 @@ package com.pakgopay.service.impl;
 import com.pakgopay.common.enums.ResultCode;
 import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.CreateUserRequest;
+import com.pakgopay.data.reqeust.systemConfig.EditUserRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.mapper.BalanceMapper;
 import com.pakgopay.mapper.UserMapper;
@@ -44,6 +45,16 @@ public class UserService {
         } catch (PakGoPayException e) {
             log.error("createLoginUser failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
             return CommonResponse.fail(e.getCode(), "createLoginUser failed: " + e.getMessage());
+        }
+    }
+
+    public CommonResponse editLoginUser(EditUserRequest user) {
+        try {
+            editUser(user);
+            return CommonResponse.success("Edit user successfully");
+        } catch (PakGoPayException e) {
+            log.error("editLoginUser failed, code: {} message: {}", e.getErrorCode(), e.getMessage());
+            return CommonResponse.fail(e.getCode(), "editLoginUser failed: " + e.getMessage());
         }
     }
 
@@ -98,6 +109,47 @@ public class UserService {
         syncUserWhitelistToCloudflare(newUser);
 
         return userId;
+    }
+
+    public void editUser(EditUserRequest user) throws PakGoPayException {
+        if (user == null || user.getUserId() == null || user.getUserId().isBlank()) {
+            throw new PakGoPayException(ResultCode.FAIL, "userId is invalid");
+        }
+        if (user.getOperatorId() == null || user.getOperatorId().isBlank()) {
+            throw new PakGoPayException(ResultCode.FAIL, "operator is invalid");
+        }
+        if (user.getPassword() == null || !user.getPassword().equals(user.getConfirmPassword())) {
+            throw new PakGoPayException(ResultCode.FAIL, "check password is same with confirm password");
+        }
+
+        UserDTO existUser = userMapper.getOneUserByUserId(user.getUserId());
+        if (existUser == null) {
+            throw new PakGoPayException(ResultCode.FAIL, "user is not exist");
+        }
+
+        UserDTO sameLoginNameUser = userMapper.getOneUser(user.getLoginName());
+        if (sameLoginNameUser != null && !String.valueOf(user.getUserId()).equals(String.valueOf(sameLoginNameUser.getUserId()))) {
+            throw new PakGoPayException(ResultCode.FAIL, "user already exist");
+        }
+
+        UserDTO editUser = new UserDTO();
+        editUser.setUserId(user.getUserId());
+        editUser.setLoginName(user.getLoginName());
+        editUser.setPassword(user.getPassword());
+        editUser.setRoleId(user.getRoleId());
+        editUser.setStatus(user.getStatus());
+        editUser.setLoginIps(user.getLoginIps());
+        editUser.setWithdrawalIps(user.getWithdrawalIps());
+        editUser.setContactName(user.getContactName());
+        editUser.setContactEmail(user.getContactEmail());
+        editUser.setContactPhone(user.getContactPhone());
+
+        int result = userMapper.updateUserByUserId(editUser);
+        if (result == 0) {
+            throw new PakGoPayException(ResultCode.FAIL, "edit user failed");
+        }
+
+        syncUserWhitelistToCloudflare(editUser);
     }
 
     private void syncUserWhitelistToCloudflare(UserDTO user) {

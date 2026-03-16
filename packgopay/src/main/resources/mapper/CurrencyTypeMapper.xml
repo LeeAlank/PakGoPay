@@ -48,9 +48,6 @@
     <update id="updateCurrencyType">
         UPDATE currency
         <set>
-            <if test="currencyType != null">currency_type = #{currencyType},</if>
-            <if test="name != null">name = #{name},</if>
-            <if test="icon != null">icon = #{icon},</if>
             <if test="currencyAccuracy != null">currency_scale = #{currencyAccuracy},</if>
             <if test="timezone != null and timezone != ''">timezone = #{timezone},</if>
             <if test="updateTime != null">update_time = #{updateTime},</if>

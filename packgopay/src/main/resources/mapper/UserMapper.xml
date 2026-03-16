@@ -173,6 +173,21 @@
         )
     </insert>
 
+    <update id="updateUserByUserId" parameterType="com.pakgopay.mapper.dto.UserDTO">
+        UPDATE user_info
+        SET
+            login_name = #{user.loginName},
+            password = #{user.password},
+            role_id = #{user.roleId},
+            status = #{user.status},
+            login_ips = #{user.loginIps},
+            withdrawal_ips = #{user.withdrawalIps},
+            contact_name = #{user.contactName},
+            contact_email = #{user.contactEmail},
+            contact_phone = #{user.contactPhone}
+        WHERE user_id = #{user.userId}
+    </update>
+
     <update id="stopLoginUser">
         UPDATE USER_INFO SET status = #{status} where user_id = #{userId}
     </update>
