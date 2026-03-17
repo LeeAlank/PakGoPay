@@ -1,6 +1,5 @@
 package com.pakgopay.data.reqeust.systemConfig;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -16,8 +15,11 @@ public class TelegramBroadcastRequest implements Serializable {
 
     private String title;
 
-    @NotBlank(message = "content is empty")
     private String content;
+
+    private String imageName;
+
+    private String imageDataUrl;
 
     private Boolean pinMessage;
 

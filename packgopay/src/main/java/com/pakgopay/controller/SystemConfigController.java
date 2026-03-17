@@ -27,6 +27,7 @@ import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -216,6 +217,9 @@ public class SystemConfigController {
             HttpServletRequest httpServletRequest) {
         String operatorUserId = resolveOperatorUserIdFromRequest(httpServletRequest);
         try {
+            if (!StringUtils.hasText(request.getContent()) && !StringUtils.hasText(request.getImageDataUrl())) {
+                return CommonResponse.fail(ResultCode.INVALID_PARAMS, "content or image is required");
+            }
             Set<String> chatIds = new LinkedHashSet<>();
             List<String> skippedAccounts = new ArrayList<>();
             List<String> invalidAccounts = new ArrayList<>();
@@ -237,7 +241,14 @@ public class SystemConfigController {
             int sent = 0;
             boolean pinMessage = Boolean.TRUE.equals(request.getPinMessage());
             for (String chatId : chatIds) {
-                telegramService.sendAnnouncementTo(chatId, request.getTitle(), request.getContent(), pinMessage);
+                telegramService.sendBroadcastContentTo(
+                        chatId,
+                        request.getTitle(),
+                        request.getContent(),
+                        request.getImageName(),
+                        request.getImageDataUrl(),
+                        pinMessage
+                );
                 sent++;
             }
             operateLogService.write(OperateInterfaceEnum.TELEGRAM_BROADCAST, operatorUserId, request);

@@ -17,6 +17,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.HtmlUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,6 +96,35 @@ public class TelegramService {
             }
         }
         return result;
+    }
+
+    public String sendBroadcastContentTo(String chatId,
+                                         String title,
+                                         String content,
+                                         String imageName,
+                                         String imageDataUrl,
+                                         boolean pinMessage) {
+        boolean hasImage = StringUtils.hasText(imageDataUrl);
+        boolean hasText = StringUtils.hasText(title) || StringUtils.hasText(content);
+        if (!hasImage) {
+            return sendAnnouncementTo(chatId, title, content, pinMessage);
+        }
+
+        DecodedTelegramImage image = decodeImageDataUrl(imageName, imageDataUrl);
+        if (image == null) {
+            throw new IllegalArgumentException("invalid image data");
+        }
+
+        String caption = hasText ? buildAnnouncementText(title, content) : null;
+        if (StringUtils.hasText(caption) && caption.length() <= 1024) {
+            return sendPhotoTo(chatId, image.fileName(), image.bytes(), caption, "HTML", pinMessage);
+        }
+
+        String photoResult = sendPhotoTo(chatId, image.fileName(), image.bytes(), null, null, !hasText && pinMessage);
+        if (hasText) {
+            sendAnnouncementTo(chatId, title, content, pinMessage);
+        }
+        return photoResult;
     }
 
     public String sendMessageWithInlineKeyboardTo(String chatId, String text, Object replyMarkup) {
@@ -281,6 +312,58 @@ public class TelegramService {
             return result;
         }
         log.warn("Telegram sendDocument failed: status={}, body={}", response.getStatusCode(), result);
+        return result;
+    }
+
+    public String sendPhotoTo(String chatId,
+                              String fileName,
+                              byte[] content,
+                              String caption,
+                              String parseMode,
+                              boolean pinMessage) {
+        String token = getConfig(TOKEN_KEY);
+        if (!StringUtils.hasText(token)) {
+            log.warn("Telegram token not configured.");
+            return null;
+        }
+        if (!StringUtils.hasText(chatId)) {
+            log.warn("Telegram chatId not configured.");
+            return null;
+        }
+        String url = API_BASE + "/bot" + token + "/sendPhoto";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        ByteArrayResource resource = new ByteArrayResource(content) {
+            @Override
+            public String getFilename() {
+                return fileName;
+            }
+        };
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("chat_id", chatId);
+        body.add("photo", resource);
+        if (StringUtils.hasText(caption)) {
+            body.add("caption", caption);
+        }
+        if (StringUtils.hasText(parseMode)) {
+            body.add("parse_mode", parseMode);
+        }
+
+        ResponseEntity<String> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
+        String result = response.getBody();
+        if (response.getStatusCode().is2xxSuccessful() && result != null && result.contains("\"ok\":true")) {
+            if (pinMessage) {
+                Long messageId = extractMessageId(result);
+                if (messageId != null) {
+                    pinChatMessage(chatId, messageId, true);
+                }
+            }
+            return result;
+        }
+        log.warn("Telegram sendPhoto failed: status={}, body={}", response.getStatusCode(), result);
         return result;
     }
 
@@ -474,6 +557,48 @@ public class TelegramService {
             return null;
         }
     }
+
+    private DecodedTelegramImage decodeImageDataUrl(String imageName, String imageDataUrl) {
+        if (!StringUtils.hasText(imageDataUrl)) {
+            return null;
+        }
+        try {
+            String trimmed = imageDataUrl.trim();
+            if (!trimmed.startsWith("data:")) {
+                return null;
+            }
+            int commaIndex = trimmed.indexOf(',');
+            if (commaIndex < 0) {
+                return null;
+            }
+            String metadata = trimmed.substring(5, commaIndex);
+            String base64Body = trimmed.substring(commaIndex + 1);
+            String mimeType = metadata.contains(";") ? metadata.substring(0, metadata.indexOf(';')) : metadata;
+            byte[] bytes = Base64.getDecoder().decode(base64Body.getBytes(StandardCharsets.UTF_8));
+            String fileName = StringUtils.hasText(imageName) ? imageName.trim() : "telegram-broadcast-image";
+            if (!fileName.contains(".")) {
+                fileName = fileName + resolveImageExtension(mimeType);
+            }
+            return new DecodedTelegramImage(fileName, bytes);
+        } catch (Exception e) {
+            log.warn("Decode telegram image data failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String resolveImageExtension(String mimeType) {
+        if (!StringUtils.hasText(mimeType)) {
+            return ".png";
+        }
+        return switch (mimeType.trim().toLowerCase()) {
+            case "image/jpeg", "image/jpg" -> ".jpg";
+            case "image/webp" -> ".webp";
+            case "image/gif" -> ".gif";
+            default -> ".png";
+        };
+    }
+
+    private record DecodedTelegramImage(String fileName, byte[] bytes) {}
 
     private String extractMigratedChatId(String errorBody) {
         if (!StringUtils.hasText(errorBody)) {
