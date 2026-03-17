@@ -13,17 +13,22 @@ import com.pakgopay.data.reqeust.account.AccountStatementEditRequest;
 import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
 import com.pakgopay.data.reqeust.report.OpsReportRequest;
 import com.pakgopay.data.reqeust.transaction.NotifyRequest;
+import com.pakgopay.data.entity.OrderQueryEntity;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.report.OpsReportResponse;
 import com.pakgopay.mapper.AccountStatementsMapper;
+import com.pakgopay.mapper.BalanceMapper;
 import com.pakgopay.mapper.CollectionOrderMapper;
 import com.pakgopay.mapper.CurrencyTypeMapper;
 import com.pakgopay.mapper.PayOrderMapper;
+import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.AccountStatementsDto;
+import com.pakgopay.mapper.dto.BalanceDto;
 import com.pakgopay.mapper.dto.OpsOrderDailyDto;
 import com.pakgopay.mapper.dto.CurrencyTypeDTO;
 import com.pakgopay.mapper.dto.CollectionOrderDto;
 import com.pakgopay.mapper.dto.PayOrderDto;
+import com.pakgopay.mapper.dto.UserDTO;
 import com.pakgopay.service.OpsReportService;
 import com.pakgopay.service.common.AccountStatementService;
 import com.pakgopay.service.common.OrderInterventionTelegramNotifier;
@@ -34,6 +39,7 @@ import com.pakgopay.service.transaction.PayOutOrderService;
 import com.pakgopay.thirdUtil.RedisUtil;
 import com.pakgopay.util.SnowflakeIdGenerator;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -72,6 +78,8 @@ public class WebhookController {
     private final PayOrderMapper payOrderMapper;
     private final AccountStatementsMapper accountStatementsMapper;
     private final AccountStatementService accountStatementService;
+    private final UserMapper userMapper;
+    private final BalanceMapper balanceMapper;
     private final RedisUtil redisUtil;
     private final OrderInterventionTelegramNotifier orderInterventionTelegramNotifier;
     private final TelegramOrderNoRecognizer telegramOrderNoRecognizer;
@@ -87,6 +95,8 @@ public class WebhookController {
                              PayOrderMapper payOrderMapper,
                              AccountStatementsMapper accountStatementsMapper,
                              AccountStatementService accountStatementService,
+                             UserMapper userMapper,
+                             BalanceMapper balanceMapper,
                              RedisUtil redisUtil,
                              OrderInterventionTelegramNotifier orderInterventionTelegramNotifier,
                              TelegramOrderNoRecognizer telegramOrderNoRecognizer) {
@@ -99,6 +109,8 @@ public class WebhookController {
         this.payOrderMapper = payOrderMapper;
         this.accountStatementsMapper = accountStatementsMapper;
         this.accountStatementService = accountStatementService;
+        this.userMapper = userMapper;
+        this.balanceMapper = balanceMapper;
         this.redisUtil = redisUtil;
         this.orderInterventionTelegramNotifier = orderInterventionTelegramNotifier;
         this.telegramOrderNoRecognizer = telegramOrderNoRecognizer;
@@ -133,10 +145,6 @@ public class WebhookController {
                 telegramService.sendMessageTo(chatId, "disabled");
                 return CommonResponse.success("disabled");
             }
-            if (!isAllowedUser(message)) {
-                log.warn("telegram webhook ignore unauthorized message, chatId={}", chatId);
-                return CommonResponse.success("ignore_unauthorized");
-            }
 
             JSONObject document = message.getJSONObject("document");
             String documentImageFileId = resolveDocumentImageFileId(document);
@@ -167,6 +175,9 @@ public class WebhookController {
                 return CommonResponse.success("ignore");
             }
             String trimmed = text.trim();
+            if (tryHandleBindingAndQueryCommands(message, chatId, trimmed)) {
+                return CommonResponse.success("ok");
+            }
             if (tryHandleOrderRemark(message, chatId, trimmed)) {
                 return CommonResponse.success("ok");
             }
@@ -203,6 +214,313 @@ public class WebhookController {
             log.error("telegram webhook handle failed: {}", e.getMessage());
         }
         return CommonResponse.success("ok");
+    }
+
+    private boolean tryHandleBindingAndQueryCommands(JSONObject message, String chatId, String trimmed) {
+        if (!StringUtils.hasText(trimmed)) {
+            return false;
+        }
+        String[] parts = trimmed.split("\\s+", 2);
+        String command = parts[0].trim().toLowerCase(Locale.ROOT);
+        String arg = parts.length > 1 ? parts[1].trim() : "";
+        switch (command) {
+            case "/bd":
+                handleBindCommand(chatId, arg);
+                return true;
+            case "/jb":
+                handleUnbindCommand(chatId, arg);
+                return true;
+            case "/ds":
+                handleCollectionQueryCommand(chatId, arg);
+                return true;
+            case "/df":
+                handlePayoutQueryCommand(chatId, arg);
+                return true;
+            case "/tds":
+                handleStatsCommand(chatId, true, true);
+                return true;
+            case "/mds":
+                handleStatsCommand(chatId, true, false);
+                return true;
+            case "/tdf":
+                handleStatsCommand(chatId, false, true);
+                return true;
+            case "/mdf":
+                handleStatsCommand(chatId, false, false);
+                return true;
+            case "/ye":
+                handleBalanceCommand(chatId);
+                return true;
+            case "/help":
+                telegramService.sendMessageTo(chatId, buildBindingHelpText());
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void handleBindCommand(String chatId, String loginName) {
+        if (!StringUtils.hasText(loginName)) {
+            telegramService.sendMessageTo(chatId, "请使用：/bd 用户名");
+            return;
+        }
+        UserDTO existing = userMapper.getOneUserByTelegramGroup(chatId);
+        if (existing != null && StringUtils.hasText(existing.getLoginName())) {
+            if (loginName.equalsIgnoreCase(existing.getLoginName())) {
+                telegramService.sendMessageTo(chatId, "当前群已绑定账号：" + existing.getLoginName());
+            } else {
+                telegramService.sendMessageTo(chatId, "当前群已绑定账号：" + existing.getLoginName() + "，请先执行 /jb " + existing.getLoginName());
+            }
+            return;
+        }
+
+        UserDTO target = userMapper.loginUserByLoginName(loginName);
+        if (target == null || !StringUtils.hasText(target.getUserId())) {
+            telegramService.sendMessageTo(chatId, "未找到该用户名，请检查后重试。");
+            return;
+        }
+        if (!isMerchantRole(target) && !isAdminRole(target)) {
+            telegramService.sendMessageTo(chatId, "绑定失败：仅支持商户或管理员角色绑定。");
+            return;
+        }
+        if (StringUtils.hasText(target.getTelegramGroup()) && !chatId.equals(target.getTelegramGroup())) {
+            telegramService.sendMessageTo(chatId, "该账号已绑定其他群，无法重复绑定。");
+            return;
+        }
+        int updated = userMapper.bindTelegramGroupByLoginName(target.getLoginName(), chatId);
+        if (updated > 0) {
+            telegramService.sendMessageTo(chatId, "绑定成功，当前账号：" + target.getLoginName());
+            return;
+        }
+        telegramService.sendMessageTo(chatId, "绑定失败，请稍后重试。");
+    }
+
+    private void handleUnbindCommand(String chatId, String loginName) {
+        UserDTO boundUser = requireBoundUser(chatId);
+        if (boundUser == null) {
+            return;
+        }
+        if (!isMerchantRole(boundUser) && !isAdminRole(boundUser)) {
+            telegramService.sendMessageTo(chatId, "无权限");
+            return;
+        }
+        if (!StringUtils.hasText(loginName)) {
+            telegramService.sendMessageTo(chatId, "请使用：/jb 用户名");
+            return;
+        }
+        if (!loginName.equalsIgnoreCase(boundUser.getLoginName())) {
+            telegramService.sendMessageTo(chatId, "解绑失败：用户名与当前绑定账号不一致（当前为 " + boundUser.getLoginName() + "）");
+            return;
+        }
+        int updated = userMapper.unbindTelegramGroupByLoginName(boundUser.getLoginName(), chatId);
+        if (updated > 0) {
+            telegramService.sendMessageTo(chatId, "解绑成功：" + boundUser.getLoginName());
+            return;
+        }
+        telegramService.sendMessageTo(chatId, "解绑失败，请稍后重试。");
+    }
+
+    private void handleCollectionQueryCommand(String chatId, String transactionNo) {
+        UserDTO boundUser = requireBoundUser(chatId);
+        if (boundUser == null) {
+            return;
+        }
+        if (!isMerchantRole(boundUser) && !isAdminRole(boundUser)) {
+            telegramService.sendMessageTo(chatId, "无权限");
+            return;
+        }
+        if (!StringUtils.hasText(transactionNo)) {
+            telegramService.sendMessageTo(chatId, "请使用：/ds 订单号");
+            return;
+        }
+        long[] range = resolveTransactionNoTimeRange(transactionNo);
+        CollectionOrderDto dto = collectionOrderMapper.findByTransactionNo(transactionNo, range[0], range[1]).orElse(null);
+        if (dto == null) {
+            telegramService.sendMessageTo(chatId, "未找到代收订单：" + transactionNo);
+            return;
+        }
+        if (isMerchantRole(boundUser) && !boundUser.getUserId().equals(dto.getMerchantUserId())) {
+            telegramService.sendMessageTo(chatId, "无权限");
+            return;
+        }
+        String text = "代收订单信息\n"
+                + "订单号: " + nullSafe(dto.getTransactionNo()) + "\n"
+                + "商户订单号: " + nullSafe(dto.getMerchantOrderNo()) + "\n"
+                + "商户号: " + nullSafe(dto.getMerchantUserId()) + "\n"
+                + "状态: " + nullSafe(dto.getOrderStatus()) + "\n"
+                + "金额: " + (dto.getAmount() == null ? "-" : dto.getAmount().toPlainString()) + "\n"
+                + "币种: " + nullSafe(dto.getCurrencyType()) + "\n"
+                + "创建时间: " + formatEpoch(dto.getCreateTime());
+        telegramService.sendMessageTo(chatId, text);
+    }
+
+    private void handlePayoutQueryCommand(String chatId, String transactionNo) {
+        UserDTO boundUser = requireBoundUser(chatId);
+        if (boundUser == null) {
+            return;
+        }
+        if (!isMerchantRole(boundUser) && !isAdminRole(boundUser)) {
+            telegramService.sendMessageTo(chatId, "无权限");
+            return;
+        }
+        if (!StringUtils.hasText(transactionNo)) {
+            telegramService.sendMessageTo(chatId, "请使用：/df 订单号");
+            return;
+        }
+        long[] range = resolveTransactionNoTimeRange(transactionNo);
+        PayOrderDto dto = payOrderMapper.findByTransactionNo(transactionNo, range[0], range[1]).orElse(null);
+        if (dto == null) {
+            telegramService.sendMessageTo(chatId, "未找到代付订单：" + transactionNo);
+            return;
+        }
+        if (isMerchantRole(boundUser) && !boundUser.getUserId().equals(dto.getMerchantUserId())) {
+            telegramService.sendMessageTo(chatId, "无权限");
+            return;
+        }
+        String text = "代付订单信息\n"
+                + "订单号: " + nullSafe(dto.getTransactionNo()) + "\n"
+                + "商户订单号: " + nullSafe(dto.getMerchantOrderNo()) + "\n"
+                + "商户号: " + nullSafe(dto.getMerchantUserId()) + "\n"
+                + "状态: " + nullSafe(dto.getOrderStatus()) + "\n"
+                + "金额: " + (dto.getAmount() == null ? "-" : dto.getAmount().toPlainString()) + "\n"
+                + "币种: " + nullSafe(dto.getCurrencyType()) + "\n"
+                + "创建时间: " + formatEpoch(dto.getCreateTime());
+        telegramService.sendMessageTo(chatId, text);
+    }
+
+    private void handleStatsCommand(String chatId, boolean collection, boolean today) {
+        UserDTO boundUser = requireBoundUser(chatId);
+        if (boundUser == null) {
+            return;
+        }
+        if (!isMerchantRole(boundUser) && !isAdminRole(boundUser)) {
+            telegramService.sendMessageTo(chatId, "无权限");
+            return;
+        }
+        long now = Instant.now().getEpochSecond();
+        ZoneId zoneId = ZoneId.systemDefault();
+        LocalDate current = Instant.ofEpochSecond(now).atZone(zoneId).toLocalDate();
+        long start = today
+                ? current.atStartOfDay(zoneId).toEpochSecond()
+                : current.withDayOfMonth(1).atStartOfDay(zoneId).toEpochSecond();
+        long end = now + 1;
+        String successStatus = String.valueOf(TransactionStatus.SUCCESS.getCode());
+
+        OrderQueryEntity totalQuery = new OrderQueryEntity();
+        totalQuery.setStartTime(start);
+        totalQuery.setEndTime(end);
+        if (isMerchantRole(boundUser)) {
+            totalQuery.setMerchantUserId(boundUser.getUserId());
+        }
+        Integer total = collection
+                ? collectionOrderMapper.countByQuery(totalQuery)
+                : payOrderMapper.countByQuery(totalQuery);
+
+        OrderQueryEntity successQuery = new OrderQueryEntity();
+        successQuery.setStartTime(start);
+        successQuery.setEndTime(end);
+        successQuery.setOrderStatus(successStatus);
+        if (isMerchantRole(boundUser)) {
+            successQuery.setMerchantUserId(boundUser.getUserId());
+        }
+        Integer success = collection
+                ? collectionOrderMapper.countByQuery(successQuery)
+                : payOrderMapper.countByQuery(successQuery);
+
+        int totalCount = total == null ? 0 : total;
+        int successCount = success == null ? 0 : success;
+        BigDecimal successRate = totalCount <= 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(successCount).multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalCount), 2, java.math.RoundingMode.HALF_UP);
+        String title = (today ? "今日" : "本月") + (collection ? "代收统计" : "代付统计");
+        String text = title + "\n"
+                + "总订单数: " + totalCount + "\n"
+                + "成功订单数: " + successCount + "\n"
+                + "成功率: " + successRate + "%";
+        telegramService.sendMessageTo(chatId, text);
+    }
+
+    private void handleBalanceCommand(String chatId) {
+        UserDTO boundUser = requireBoundUser(chatId);
+        if (boundUser == null) {
+            return;
+        }
+        if (!isMerchantRole(boundUser)) {
+            telegramService.sendMessageTo(chatId, "该功能仅支持商户");
+            return;
+        }
+        List<BalanceDto> balances = balanceMapper.findByUserId(boundUser.getUserId());
+        if (balances == null || balances.isEmpty()) {
+            telegramService.sendMessageTo(chatId, "当前账号无余额数据。");
+            return;
+        }
+        StringBuilder builder = new StringBuilder("账户余额\n");
+        for (BalanceDto item : balances) {
+            builder.append("币种: ").append(nullSafe(item.getCurrency()))
+                    .append(" | 可用: ").append(item.getAvailableBalance() == null ? "0" : item.getAvailableBalance().toPlainString())
+                    .append(" | 冻结: ").append(item.getFrozenBalance() == null ? "0" : item.getFrozenBalance().toPlainString())
+                    .append(" | 总额: ").append(item.getTotalBalance() == null ? "0" : item.getTotalBalance().toPlainString())
+                    .append("\n");
+        }
+        telegramService.sendMessageTo(chatId, builder.toString().trim());
+    }
+
+    private UserDTO requireBoundUser(String chatId) {
+        UserDTO boundUser = userMapper.getOneUserByTelegramGroup(chatId);
+        if (boundUser == null || !StringUtils.hasText(boundUser.getUserId())) {
+            telegramService.sendMessageTo(chatId, "请先绑定账号：/bd 用户名");
+            return null;
+        }
+        return boundUser;
+    }
+
+    private boolean isMerchantRole(UserDTO user) {
+        return user != null
+                && user.getRoleId() != null
+                && user.getRoleId() == CommonConstant.ROLE_MERCHANT;
+    }
+
+    private boolean isAdminRole(UserDTO user) {
+        return user != null
+                && user.getRoleId() != null
+                && user.getRoleId() == CommonConstant.ROLE_ADMIN;
+    }
+
+    private String formatEpoch(Long epochSecond) {
+        if (epochSecond == null || epochSecond <= 0) {
+            return "-";
+        }
+        return Instant.ofEpochSecond(epochSecond)
+                .atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    private String nullSafe(Object value) {
+        return value == null ? "-" : String.valueOf(value);
+    }
+
+    private String buildBindingHelpText() {
+        return "指令列表\n"
+                + "/bd 用户名 -绑定商户账号\n"
+                + "/jb 用户名 -解绑商户账号\n"
+                + "/ds 订单号 -查询代收订单\n"
+                + "/df 订单号 -查询代付订单号\n"
+                + "/tds -今日代收统计\n"
+                + "/mds -本月代收统计\n"
+                + "/tdf -今日代付统计\n"
+                + "/mdf -本月代付统计\n"
+                + "/ye -账户余额查询\n"
+                + "/help -显示此帮助信息\n\n"
+                + "💡 使用说明：\n"
+                + "• 首次使用需要先绑定商户账号\n"
+                + "• 一个群只能绑定一个商户账号\n"
+                + "• 绑定后群内任何人都可以使用查询命令\n"
+                + "• 如需更换账号，请先解绑再重新绑定\n\n"
+                + "🔒 安全提示：\n"
+                + "• 请确保在私密群组中使用\n"
+                + "• 定期检查群组成员\n"
+                + "• 如发现异常请及时解绑账号";
     }
 
     private void handleImageOrderRecognition(JSONObject message, String chatId, String fileId) {
@@ -335,11 +653,6 @@ public class WebhookController {
         if (!telegramService.isEnabled()) {
             telegramService.answerCallbackQuery(callbackQueryId, "disabled", false);
             return CommonResponse.success("disabled");
-        }
-        if (!telegramService.isAllowedUser(fromUserId)) {
-            telegramService.answerCallbackQuery(callbackQueryId, "you have no permission", true);
-            log.warn("telegram webhook ignore unauthorized callback, fromUserId={}", fromUserId);
-            return CommonResponse.success("ignore_unauthorized");
         }
 
         String callbackData = callbackQuery.getString("data");
@@ -522,11 +835,6 @@ public class WebhookController {
         String callbackQueryId = callbackQuery.getString("id");
         JSONObject from = callbackQuery.getJSONObject("from");
         String fromUserId = from == null ? null : String.valueOf(from.get("id"));
-        if (!telegramService.isAllowedUser(fromUserId)) {
-            telegramService.answerCallbackQuery(callbackQueryId, "you have no permission", true);
-            log.warn("telegram webhook ignore unauthorized withdraw callback, fromUserId={}", fromUserId);
-            return CommonResponse.success("ignore_unauthorized");
-        }
 
         String callbackData = callbackQuery.getString("data");
         String[] parts = callbackData == null ? new String[0] : callbackData.split("\\|");
@@ -680,15 +988,6 @@ public class WebhookController {
             return new long[]{0L, Long.MAX_VALUE};
         }
         return range;
-    }
-
-    private boolean isAllowedUser(JSONObject message) {
-        JSONObject from = message.getJSONObject("from");
-        if (from == null) {
-            return false;
-        }
-        String userId = String.valueOf(from.get("id"));
-        return telegramService.isAllowedUser(userId);
     }
 
     private void logWebhookRequest(HttpServletRequest request, String payload) {

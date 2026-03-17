@@ -35,4 +35,9 @@ public class MerchantQueryRequest extends ExportBaseRequest {
      * is need page card data
      */
     private Boolean isNeedCardData = false;
+
+    /**
+     * only return merchants with bound telegram group
+     */
+    private Boolean telegramBoundOnly = false;
 }

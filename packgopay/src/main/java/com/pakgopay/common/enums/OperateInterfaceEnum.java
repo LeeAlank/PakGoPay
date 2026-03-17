@@ -51,6 +51,7 @@ public enum OperateInterfaceEnum {
     RESET_GOOGLE_KEY(1, "Reset Google Key"),
     BIND_GOOGLE_KEY(1, "Bind Google Key"),
     UPDATE_TELEGRAM_CONFIG(1, "Update Telegram Config"),
+    TELEGRAM_BROADCAST(1, "Telegram Broadcast"),
     UPDATE_RATE_LIMIT_CONFIG(1, "Update Rate Limit Config"),
 
     // Transaction manual operation

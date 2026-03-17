@@ -1,5 +1,7 @@
 package com.pakgopay.service.common;
 
+import com.pakgopay.common.constant.CommonConstant;
+import com.pakgopay.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -8,9 +10,11 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -21,9 +25,11 @@ public class OrderInterventionTelegramNotifier {
     private static final String WITHDRAW_CALLBACK_PREFIX = "wdr";
 
     private final TelegramService telegramService;
+    private final UserMapper userMapper;
 
-    public OrderInterventionTelegramNotifier(TelegramService telegramService) {
+    public OrderInterventionTelegramNotifier(TelegramService telegramService, UserMapper userMapper) {
         this.telegramService = telegramService;
+        this.userMapper = userMapper;
     }
 
     public void notifyTimeoutCollectionOrder(String transactionNo, Long createTime) {
@@ -50,9 +56,9 @@ public class OrderInterventionTelegramNotifier {
         if (!StringUtils.hasText(statementId)) {
             return;
         }
-        String chatId = telegramService.getDefaultChatId();
-        if (!StringUtils.hasText(chatId)) {
-            log.warn("skip telegram withdraw notify: default chatId is empty");
+        List<String> adminChatIds = resolveAdminTelegramGroups();
+        if (adminChatIds.isEmpty()) {
+            log.warn("skip telegram withdraw notify: no admin telegram group bound");
             return;
         }
         String createTimeText = createTime == null
@@ -63,11 +69,13 @@ public class OrderInterventionTelegramNotifier {
                 + "创建时间: " + createTimeText + "\n"
                 + "请选择操作(需填写说明):";
         Map<String, Object> markup = buildWithdrawReplyMarkup(statementId);
-        try {
-            telegramService.sendMessageWithInlineKeyboardTo(chatId, text, markup);
-        } catch (Exception e) {
-            log.warn("telegram withdraw notify failed, statementId={}, chatId={}, message={}",
-                    statementId, chatId, e.getMessage());
+        for (String chatId : adminChatIds) {
+            try {
+                telegramService.sendMessageWithInlineKeyboardTo(chatId, text, markup);
+            } catch (Exception e) {
+                log.warn("telegram withdraw notify failed, statementId={}, chatId={}, message={}",
+                        statementId, chatId, e.getMessage());
+            }
         }
     }
 
@@ -79,12 +87,6 @@ public class OrderInterventionTelegramNotifier {
         if (!StringUtils.hasText(transactionNo)) {
             return;
         }
-        String chatId = StringUtils.hasText(targetChatId) ? targetChatId : telegramService.getDefaultChatId();
-        if (!StringUtils.hasText(chatId)) {
-            log.warn("skip telegram intervention notify: default chatId is empty");
-            return;
-        }
-
         String typeLabel = "collection".equals(orderType) ? "代收超时订单" : "代付超时订单";
         String createTimeText = createTime == null
                 ? "-"
@@ -95,7 +97,31 @@ public class OrderInterventionTelegramNotifier {
                 + "请选择操作:";
 
         Map<String, Object> markup = buildReplyMarkup(orderType, transactionNo);
-        telegramService.sendMessageWithInlineKeyboardTo(chatId, text, markup);
+        if (StringUtils.hasText(targetChatId)) {
+            log.info("manual target chat ignored for intervention notify, targetChatId={}, use admin groups only", targetChatId);
+        }
+        List<String> adminChatIds = resolveAdminTelegramGroups();
+        if (adminChatIds.isEmpty()) {
+            log.warn("skip telegram intervention notify: no admin telegram group bound");
+            return;
+        }
+        for (String chatId : adminChatIds) {
+            telegramService.sendMessageWithInlineKeyboardTo(chatId, text, markup);
+        }
+    }
+
+    private List<String> resolveAdminTelegramGroups() {
+        List<String> groups = userMapper.listTelegramGroupsByRoleId(CommonConstant.ROLE_ADMIN);
+        if (groups == null || groups.isEmpty()) {
+            return List.of();
+        }
+        Set<String> dedup = new LinkedHashSet<>();
+        for (String group : groups) {
+            if (StringUtils.hasText(group)) {
+                dedup.add(group.trim());
+            }
+        }
+        return new ArrayList<>(dedup);
     }
 
     private Map<String, Object> buildReplyMarkup(String orderType, String transactionNo) {

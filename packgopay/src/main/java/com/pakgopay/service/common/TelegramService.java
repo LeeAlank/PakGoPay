@@ -15,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.util.HtmlUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,6 +50,10 @@ public class TelegramService {
     }
 
     public String sendMessageTo(String chatId, String text) {
+        return sendMessageTo(chatId, text, null);
+    }
+
+    public String sendMessageTo(String chatId, String text, String parseMode) {
         String token = getConfig(TOKEN_KEY);
         if (!StringUtils.hasText(token)) {
             log.warn("Telegram token not configured.");
@@ -59,9 +64,12 @@ public class TelegramService {
             return null;
         }
         String url = API_BASE + "/bot" + token + "/sendMessage";
-        Map<String, String> body = new HashMap<>();
+        Map<String, Object> body = new HashMap<>();
         body.put("chat_id", chatId);
         body.put("text", text);
+        if (StringUtils.hasText(parseMode)) {
+            body.put("parse_mode", parseMode);
+        }
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, body, String.class);
             String result = response.getBody();
@@ -74,6 +82,18 @@ public class TelegramService {
             log.warn("Telegram sendMessage failed: {}", e.getMessage());
             throw e;
         }
+    }
+
+    public String sendAnnouncementTo(String chatId, String title, String content, boolean pinMessage) {
+        String formattedText = buildAnnouncementText(title, content);
+        String result = sendMessageTo(chatId, formattedText, "HTML");
+        if (pinMessage) {
+            Long messageId = extractMessageId(result);
+            if (messageId != null) {
+                pinChatMessage(chatId, messageId, true);
+            }
+        }
+        return result;
     }
 
     public String sendMessageWithInlineKeyboardTo(String chatId, String text, Object replyMarkup) {
@@ -197,6 +217,35 @@ public class TelegramService {
         } catch (Exception e) {
             log.warn("Telegram answerCallbackQuery failed: {}", e.getMessage());
             throw e;
+        }
+    }
+
+    public String pinChatMessage(String chatId, Long messageId, boolean disableNotification) {
+        String token = getConfig(TOKEN_KEY);
+        if (!StringUtils.hasText(token)) {
+            log.warn("Telegram token not configured.");
+            return null;
+        }
+        if (!StringUtils.hasText(chatId) || messageId == null) {
+            log.warn("Telegram pinChatMessage skipped: invalid chatId or messageId.");
+            return null;
+        }
+        String url = API_BASE + "/bot" + token + "/pinChatMessage";
+        Map<String, Object> body = new HashMap<>();
+        body.put("chat_id", chatId);
+        body.put("message_id", messageId);
+        body.put("disable_notification", disableNotification);
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, body, String.class);
+            String result = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && result != null && result.contains("\"ok\":true")) {
+                return result;
+            }
+            log.warn("Telegram pinChatMessage failed: status={}, body={}", response.getStatusCode(), result);
+            return result;
+        } catch (Exception e) {
+            log.warn("Telegram pinChatMessage failed: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -399,6 +448,30 @@ public class TelegramService {
             }
         } catch (Exception e) {
             log.warn("Update config {} failed: {}", key, e.getMessage());
+        }
+    }
+
+    private String buildAnnouncementText(String title, String content) {
+        String safeTitle = HtmlUtils.htmlEscape(StringUtils.hasText(title) ? title.trim() : "系统公告");
+        String safeContent = HtmlUtils.htmlEscape(content == null ? "" : content.trim())
+                .replace("\r\n", "\n");
+        return "<b>[" + safeTitle + "]</b>\n\n" + safeContent;
+    }
+
+    private Long extractMessageId(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return null;
+        }
+        try {
+            JSONObject root = JSON.parseObject(responseBody);
+            if (root == null || !Boolean.TRUE.equals(root.getBoolean("ok"))) {
+                return null;
+            }
+            JSONObject result = root.getJSONObject("result");
+            return result == null ? null : result.getLong("message_id");
+        } catch (Exception e) {
+            log.warn("Extract telegram message_id failed: {}", e.getMessage());
+            return null;
         }
     }
 

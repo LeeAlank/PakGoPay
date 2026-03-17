@@ -199,6 +199,7 @@ public class MerchantServiceImpl implements MerchantService {
         entity.setMerchantUserId(merchantQueryRequest.getMerchantUserId());
         entity.setStatus(merchantQueryRequest.getStatus());
         entity.setParentAgentId(merchantQueryRequest.getParentAgentId());
+        entity.setTelegramBoundOnly(merchantQueryRequest.getTelegramBoundOnly());
         entity.setPageNo(merchantQueryRequest.getPageNo());
         entity.setPageSize(merchantQueryRequest.getPageSize());
 

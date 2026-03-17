@@ -108,6 +108,15 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         }
         Integer count = userMapper.selectAllUserCount(loginUserRequest);
         List<UserDTO> loginUsers = userMapper.selectAllUser(loginUserRequest);
+        if (loginUsers != null) {
+            loginUsers.forEach(user -> {
+                String loginSecret = user == null ? null : user.getLoginSecret();
+                boolean isBind = loginSecret != null && !loginSecret.trim().isEmpty();
+                if (user != null) {
+                    user.setIsBind(isBind);
+                }
+            });
+        }
         LoginUserResponse loginUserResponse = new LoginUserResponse();
         loginUserResponse.setLoginUsers(loginUsers);
         loginUserResponse.setTotalNumber(count);

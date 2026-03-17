@@ -30,4 +30,6 @@ public class UserDTO implements Serializable {
     private Integer status;
     private String loginIps;
     private String withdrawalIps;
+    private String telegramGroup;
+    private Boolean isBind;
 }

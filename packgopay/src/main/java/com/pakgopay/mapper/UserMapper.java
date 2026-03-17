@@ -32,6 +32,8 @@ public interface UserMapper {
 
      List<String> listUserIdsByRoleId(@Param(value = "roleId") Integer roleId);
 
+     List<String> listTelegramGroupsByRoleId(@Param(value = "roleId") Integer roleId);
+
      int createUser(@Param(value="user") UserDTO user);
 
      int updateUserByUserId(@Param(value="user") UserDTO user);
@@ -43,4 +45,10 @@ public interface UserMapper {
     int deleteUserByUserId(String userId);
 
     int resetSecretkey(@Param(value = "secretKey") String secretKey, @Param(value = "userId") String userId);
+
+    UserDTO getOneUserByTelegramGroup(@Param("telegramGroup") String telegramGroup);
+
+    int bindTelegramGroupByLoginName(@Param("loginName") String loginName, @Param("telegramGroup") String telegramGroup);
+
+    int unbindTelegramGroupByLoginName(@Param("loginName") String loginName, @Param("telegramGroup") String telegramGroup);
 }

@@ -12,9 +12,13 @@ import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.SystemConfigGroupUpdateRequest;
+import com.pakgopay.data.reqeust.systemConfig.TelegramBroadcastRequest;
 import com.pakgopay.data.response.CommonResponse;
+import com.pakgopay.mapper.UserMapper;
+import com.pakgopay.mapper.dto.UserDTO;
 import com.pakgopay.service.common.OperateLogService;
 import com.pakgopay.service.common.SystemConfigGroupService;
+import com.pakgopay.service.common.TelegramService;
 import com.pakgopay.service.SystemConfigService;
 import com.pakgopay.service.impl.UserService;
 import com.pakgopay.thirdUtil.GoogleUtil;
@@ -24,6 +28,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/pakGoPay/server/SystemConfig")
@@ -41,6 +50,12 @@ public class SystemConfigController {
 
     @Autowired
     private OperateLogService operateLogService;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private TelegramService telegramService;
 
     @PostMapping("/createUser")
     public CommonResponse createLoginUser(@RequestBody CreateUserRequest createUserRequest){
@@ -195,6 +210,48 @@ public class SystemConfigController {
         }
     }
 
+    @PostMapping("/telegramBroadcast")
+    public CommonResponse telegramBroadcast(
+            @RequestBody @Valid TelegramBroadcastRequest request,
+            HttpServletRequest httpServletRequest) {
+        String operatorUserId = resolveOperatorUserIdFromRequest(httpServletRequest);
+        try {
+            Set<String> chatIds = new LinkedHashSet<>();
+            List<String> skippedAccounts = new ArrayList<>();
+            List<String> invalidAccounts = new ArrayList<>();
+            for (String account : request.getMerchantAccounts()) {
+                if (account == null || account.isBlank()) {
+                    continue;
+                }
+                UserDTO user = userMapper.loginUserByLoginName(account.trim());
+                if (user == null || user.getRoleId() == null || user.getRoleId() != CommonConstant.ROLE_MERCHANT) {
+                    invalidAccounts.add(account);
+                    continue;
+                }
+                if (user.getTelegramGroup() == null || user.getTelegramGroup().isBlank()) {
+                    skippedAccounts.add(account);
+                    continue;
+                }
+                chatIds.add(user.getTelegramGroup().trim());
+            }
+            int sent = 0;
+            boolean pinMessage = Boolean.TRUE.equals(request.getPinMessage());
+            for (String chatId : chatIds) {
+                telegramService.sendAnnouncementTo(chatId, request.getTitle(), request.getContent(), pinMessage);
+                sent++;
+            }
+            operateLogService.write(OperateInterfaceEnum.TELEGRAM_BROADCAST, operatorUserId, request);
+            return CommonResponse.success(new TelegramBroadcastResult(
+                    request.getMerchantAccounts() == null ? 0 : request.getMerchantAccounts().size(),
+                    sent,
+                    skippedAccounts,
+                    invalidAccounts
+            ));
+        } catch (Exception e) {
+            return CommonResponse.fail(ResultCode.FAIL, "telegram broadcast failed: " + e.getMessage());
+        }
+    }
+
     private String resolveOperatorUserIdFromRequest(HttpServletRequest request) {
         if (request == null) {
             return null;
@@ -207,4 +264,8 @@ public class SystemConfigController {
     private record DeleteLoginUserPayload(String userId) {}
     private record ResetGoogleKeyPayload(String userId, String loginName) {}
     private record BindGoogleKeyPayload(String userId, String loginName) {}
+    private record TelegramBroadcastResult(Integer totalAccounts,
+                                           Integer sentGroupCount,
+                                           List<String> skippedUnboundAccounts,
+                                           List<String> invalidAccounts) {}
 }

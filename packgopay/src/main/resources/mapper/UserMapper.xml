@@ -50,6 +50,7 @@
         <result column="status" property="status" javaType="java.lang.Integer"/>
         <result column="login_ips" property="loginIps" javaType="java.lang.String"/>
         <result column="withdrawal_ips" property="withdrawalIps" javaType="java.lang.String"/>
+        <result column="telegram_group" property="telegramGroup" javaType="java.lang.String"/>
     </resultMap>
     <sql id="BaseColumn">
         user_id,
@@ -73,7 +74,8 @@
         role_id,
         status,
         login_ips,
-        withdrawal_ips
+        withdrawal_ips,
+        telegram_group
     </sql>
     <select id="selectAllUser" parameterType="com.pakgopay.data.reqeust.systemConfig.LoginUserRequest" resultMap="userResultMap">
         SELECT
@@ -210,9 +212,37 @@
         WHERE role_id = #{roleId}
     </select>
 
+    <select id="listTelegramGroupsByRoleId" resultType="java.lang.String">
+        SELECT DISTINCT telegram_group
+        FROM user_info
+        WHERE role_id = #{roleId}
+          AND telegram_group IS NOT NULL
+          AND telegram_group &lt;&gt; ''
+    </select>
+
     <update id="resetSecretkey">
         UPDATE USER_INFO
         SET  login_secret = #{secretKey}
         WHERE user_id = #{userId}
+    </update>
+
+    <select id="getOneUserByTelegramGroup" resultMap="userResultMap">
+        SELECT *
+        FROM user_info
+        WHERE telegram_group = #{telegramGroup}
+        LIMIT 1
+    </select>
+
+    <update id="bindTelegramGroupByLoginName">
+        UPDATE user_info
+        SET telegram_group = #{telegramGroup}
+        WHERE login_name = #{loginName}
+    </update>
+
+    <update id="unbindTelegramGroupByLoginName">
+        UPDATE user_info
+        SET telegram_group = NULL
+        WHERE login_name = #{loginName}
+          AND telegram_group = #{telegramGroup}
     </update>
 </mapper>

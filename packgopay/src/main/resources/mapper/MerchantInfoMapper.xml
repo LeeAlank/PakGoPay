@@ -251,6 +251,10 @@
             <if test="status != null">AND m.status = #{status}</if>
             <if test="parentAgentId != null and parentAgentId != ''">AND m.parent_id = #{parentAgentId}</if>
             <if test="merchantUserName != null and merchantUserName != ''">AND ui.login_name = #{merchantUserName}</if>
+            <if test="telegramBoundOnly != null and telegramBoundOnly">
+                AND ui.telegram_group IS NOT NULL
+                AND ui.telegram_group != ''
+            </if>
         </where>
     </sql>
 

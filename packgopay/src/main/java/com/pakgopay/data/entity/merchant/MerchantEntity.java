@@ -29,6 +29,11 @@ public class MerchantEntity {
      */
     private String parentAgentId;
 
+    /**
+     * only return merchants with bound telegram group
+     */
+    private Boolean telegramBoundOnly;
+
     /** Page number (start from 1) */
     private Integer pageNo;
 
