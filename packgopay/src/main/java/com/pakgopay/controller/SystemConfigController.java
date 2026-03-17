@@ -3,6 +3,7 @@ package com.pakgopay.controller;
 import com.pakgopay.common.constant.CommonConstant;
 import com.pakgopay.common.enums.OperateInterfaceEnum;
 import com.pakgopay.common.enums.ResultCode;
+import com.pakgopay.common.enums.SystemConfigGroupEnum;
 import com.pakgopay.data.reqeust.CreateUserRequest;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
@@ -198,11 +199,8 @@ public class SystemConfigController {
         try {
             String operatorUserId = resolveOperatorUserIdFromRequest(httpServletRequest);
             systemConfigGroupService.updateByGroup(request);
-            if ("telegram".equalsIgnoreCase(request.getGroup())) {
-                operateLogService.write(OperateInterfaceEnum.UPDATE_TELEGRAM_CONFIG, operatorUserId, request);
-            } else if ("ratelimit".equalsIgnoreCase(request.getGroup())) {
-                operateLogService.write(OperateInterfaceEnum.UPDATE_RATE_LIMIT_CONFIG, operatorUserId, request);
-            }
+            SystemConfigGroupEnum group = SystemConfigGroupEnum.fromGroup(request.getGroup());
+            operateLogService.write(group.getUpdateOperate(), operatorUserId, request);
             return CommonResponse.success("ok");
         } catch (IllegalArgumentException e) {
             return CommonResponse.fail(ResultCode.INVALID_PARAMS, e.getMessage());

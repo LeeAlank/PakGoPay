@@ -8,15 +8,22 @@ import java.util.Locale;
 @Getter
 public enum SystemConfigItemKeyEnum {
     TELEGRAM_TOKEN("telegram", "token"),
-    TELEGRAM_CHAT_ID("telegram", "chatId"),
     TELEGRAM_WEBHOOK_SECRET("telegram", "webhookSecret"),
-    TELEGRAM_ALLOWED_USER_IDS("telegram", "allowedUserIds"),
     TELEGRAM_ENABLED("telegram", "enabled"),
+    TELEGRAM_CONSOLE_URL("telegram", "consoleUrl"),
 
     RATELIMIT_ENABLED("ratelimit", "enabled"),
     RATELIMIT_WINDOW_SECONDS("ratelimit", "windowSeconds"),
     RATELIMIT_MAX_REQUESTS("ratelimit", "maxRequests"),
-    RATELIMIT_FIXED_IP_QPS("ratelimit", "fixedIpQps");
+    RATELIMIT_FIXED_IP_QPS("ratelimit", "fixedIpQps"),
+
+    COLLECTION_ORDER_TIMEOUT_SECONDS("collection", "orderTimeoutSeconds"),
+    COLLECTION_CALLBACK_RETRY_TIMES("collection", "callbackRetryTimes"),
+    COLLECTION_CHANNEL_MATCH_MODE("collection", "channelMatchMode"),
+
+    PAYOUT_ORDER_TIMEOUT_SECONDS("payout", "orderTimeoutSeconds"),
+    PAYOUT_CALLBACK_RETRY_TIMES("payout", "callbackRetryTimes"),
+    PAYOUT_CHANNEL_MATCH_MODE("payout", "channelMatchMode");
 
     private final String group;
     private final String key;

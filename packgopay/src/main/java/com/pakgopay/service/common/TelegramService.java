@@ -2,7 +2,7 @@ package com.pakgopay.service.common;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.pakgopay.mapper.BusinessConfigurationMapper;
+import com.pakgopay.common.enums.SystemConfigItemKeyEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -27,28 +27,26 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class TelegramService {
 
-    private static final String TOKEN_KEY = "telegram.token";
-    private static final String CHAT_ID_KEY = "telegram.chatId";
-    private static final String WEBHOOK_SECRET_KEY = "telegram.webhookSecret";
-    private static final String ALLOWED_USER_IDS_KEY = "telegram.allowedUserIds";
-    private static final String ENABLED_KEY = "telegram.enabled";
-    private static final String CONSOLE_URL_KEY = "telegram.consoleUrl";
+    private static final SystemConfigItemKeyEnum TOKEN_KEY = SystemConfigItemKeyEnum.TELEGRAM_TOKEN;
+    private static final SystemConfigItemKeyEnum WEBHOOK_SECRET_KEY = SystemConfigItemKeyEnum.TELEGRAM_WEBHOOK_SECRET;
+    private static final SystemConfigItemKeyEnum ENABLED_KEY = SystemConfigItemKeyEnum.TELEGRAM_ENABLED;
+    private static final SystemConfigItemKeyEnum CONSOLE_URL_KEY = SystemConfigItemKeyEnum.TELEGRAM_CONSOLE_URL;
     private static final String API_BASE = "https://api.telegram.org";
 
     private final RestTemplate restTemplate;
     private final RestTemplate telegramRestTemplate = new RestTemplate();
-    private final BusinessConfigurationMapper configMapper;
+    private final SystemConfigGroupService systemConfigGroupService;
     private volatile String cachedBotUsername;
     private final AtomicLong cachedBotUsernameAtMs = new AtomicLong(0L);
 
-    public TelegramService(RestTemplate restTemplate, BusinessConfigurationMapper configMapper) {
+    public TelegramService(RestTemplate restTemplate, SystemConfigGroupService systemConfigGroupService) {
         this.restTemplate = restTemplate;
-        this.configMapper = configMapper;
+        this.systemConfigGroupService = systemConfigGroupService;
     }
 
     public String sendMessage(String text) {
-        String chatId = getConfig(CHAT_ID_KEY);
-        return sendMessageTo(chatId, text);
+        log.warn("Telegram default chatId config has been removed, sendMessage is ignored.");
+        return null;
     }
 
     public String sendMessageTo(String chatId, String text) {
@@ -159,11 +157,6 @@ public class TelegramService {
             String migratedChatId = extractMigratedChatId(errorBody);
             if (StringUtils.hasText(migratedChatId)) {
                 log.info("Telegram chat migrated, oldChatId={}, newChatId={}", chatId, migratedChatId);
-                // keep config in sync when default chat has migrated to supergroup
-                String defaultChatId = getDefaultChatId();
-                if (StringUtils.hasText(defaultChatId) && defaultChatId.equals(chatId)) {
-                    upsertConfig(CHAT_ID_KEY, migratedChatId);
-                }
                 try {
                     body.put("chat_id", migratedChatId);
                     ResponseEntity<String> retryResponse = telegramRestTemplate.postForEntity(url, body, String.class);
@@ -422,47 +415,12 @@ public class TelegramService {
         return getConfig(WEBHOOK_SECRET_KEY);
     }
 
-    public boolean isAllowedUser(String userId) {
-        if (!StringUtils.hasText(userId)) {
-            return false;
-        }
-        String value = getConfig(ALLOWED_USER_IDS_KEY);
-        if (!StringUtils.hasText(value)) {
-            log.warn("Telegram allowed user ids not configured.");
-            return false;
-        }
-        String normalized = value
-                .replace('，', ',')
-                .replace('；', ',')
-                .replace(';', ',')
-                .replaceAll("\\s+", ",");
-        String[] parts = normalized.split(",");
-        for (String part : parts) {
-            if (userId.trim().equals(part.trim())) {
-                return true;
-            }
-        }
-        log.warn("Telegram user not allowed, fromUserId={}, allowedUserIdsRaw={}, allowedUserIdsNormalized={}",
-                userId, value, normalized);
-        return false;
-    }
-
     public String getDefaultChatId() {
-        return getConfig(CHAT_ID_KEY);
+        return null;
     }
 
     public String getConsoleBaseUrl() {
         return getConfig(CONSOLE_URL_KEY);
-    }
-
-    public void updateTelegramConfig(String token, String chatId, String webhookSecret, String allowedUserIds, Integer enabled) {
-        upsertConfig(TOKEN_KEY, token);
-        upsertConfig(CHAT_ID_KEY, chatId);
-        upsertConfig(WEBHOOK_SECRET_KEY, webhookSecret);
-        upsertConfig(ALLOWED_USER_IDS_KEY, allowedUserIds);
-        if (enabled != null) {
-            upsertConfig(ENABLED_KEY, String.valueOf(enabled));
-        }
     }
 
     public boolean isEnabled() {
@@ -513,24 +471,13 @@ public class TelegramService {
         }
     }
 
-    private String getConfig(String key) {
+    private String getConfig(SystemConfigItemKeyEnum key) {
         try {
-            String value = configMapper.getConfigValue(key);
+            String value = systemConfigGroupService.getConfigValue(key, String.class);
             return value == null ? null : value.trim();
         } catch (Exception e) {
             log.warn("Get config {} failed: {}", key, e.getMessage());
             return null;
-        }
-    }
-
-    private void upsertConfig(String key, String value) {
-        try {
-            int updated = configMapper.updateConfigValue(key, value);
-            if (updated == 0) {
-                configMapper.insertConfig(key, value);
-            }
-        } catch (Exception e) {
-            log.warn("Update config {} failed: {}", key, e.getMessage());
         }
     }
 

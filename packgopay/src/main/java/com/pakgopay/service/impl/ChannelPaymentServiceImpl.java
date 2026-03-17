@@ -1,6 +1,8 @@
 package com.pakgopay.service.impl;
 
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pakgopay.common.constant.CommonConstant;
 import com.pakgopay.common.enums.OrderType;
 import com.pakgopay.common.enums.ResultCode;
@@ -17,10 +19,7 @@ import com.pakgopay.mapper.*;
 import com.pakgopay.mapper.dto.*;
 import com.pakgopay.service.ChannelPaymentService;
 import com.pakgopay.service.common.ExportReportDataColumns;
-import com.pakgopay.util.CalcUtil;
-import com.pakgopay.util.CommonUtil;
-import com.pakgopay.util.ExportFileUtils;
-import com.pakgopay.util.PatchBuilderUtil;
+import com.pakgopay.util.*;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +39,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class ChannelPaymentServiceImpl implements ChannelPaymentService {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+    private static final Set<String> INTERFACE_PARAM_MASK_KEYWORDS = Set.of("key");
 
     @Autowired
     private PaymentMapper paymentMapper;
@@ -865,6 +867,7 @@ public class ChannelPaymentServiceImpl implements ChannelPaymentService {
                 merchantId, paymentIds.size());
         List<PaymentDto> paymentDtoList = paymentMapper.findEnabledByPaymentIds(new ArrayList<>(paymentIds));
         paymentDtoList = filterPaymentsByEnableTime(paymentDtoList);
+        maskPaymentInterfaceParams(paymentDtoList);
         log.info("queryMerchantAvailableChannels enabled payments filtered, merchantId={}, availablePaymentCount={}",
                 merchantId, paymentDtoList.size());
 
@@ -885,6 +888,7 @@ public class ChannelPaymentServiceImpl implements ChannelPaymentService {
         try {
             Integer totalNumber = paymentMapper.countByQuery(entity);
             List<PaymentDto> paymentDtoList = paymentMapper.pageByQuery(entity);
+            maskPaymentInterfaceParams(paymentDtoList);
 
             response.setPaymentDtoList(paymentDtoList);
             response.setTotalNumber(totalNumber);
@@ -896,6 +900,27 @@ public class ChannelPaymentServiceImpl implements ChannelPaymentService {
         response.setPageNo(entity.getPageNo());
         response.setPageSize(entity.getPageSize());
         return response;
+    }
+
+    private void maskPaymentInterfaceParams(List<PaymentDto> paymentDtoList) {
+        if (paymentDtoList == null || paymentDtoList.isEmpty()) {
+            return;
+        }
+        for (PaymentDto dto : paymentDtoList) {
+            if (dto == null) {
+                continue;
+            }
+            dto.setCollectionInterfaceParam(maskInterfaceParamJson(dto.getCollectionInterfaceParam()));
+            dto.setPayInterfaceParam(maskInterfaceParamJson(dto.getPayInterfaceParam()));
+        }
+    }
+
+    private String maskInterfaceParamJson(String interfaceParam) {
+        if (interfaceParam == null || interfaceParam.isBlank()) {
+            return interfaceParam;
+        }
+        Object masked = SensitiveDataMaskUtil.sanitizePayload(interfaceParam, INTERFACE_PARAM_MASK_KEYWORDS);
+        return masked == null ? null : String.valueOf(masked);
     }
 
     @Override
@@ -990,8 +1015,21 @@ public class ChannelPaymentServiceImpl implements ChannelPaymentService {
 
     private PaymentDto buildPaymentUpdateDto(PaymentEditRequest paymentEditRequest) throws PakGoPayException {
         PaymentDto dto = new PaymentDto();
-        dto.setPaymentId(PatchBuilderUtil.parseRequiredLong(paymentEditRequest.getPaymentId(), "paymentId"));
+        Long paymentId = PatchBuilderUtil.parseRequiredLong(paymentEditRequest.getPaymentId(), "paymentId");
+        dto.setPaymentId(paymentId);
         dto.setUpdateTime(System.currentTimeMillis() / 1000);
+        PaymentDto current = paymentMapper.findByPaymentId(paymentId);
+        if (current == null) {
+            throw new PakGoPayException(ResultCode.FAIL, "payment not found");
+        }
+        paymentEditRequest.setCollectionInterfaceParam(mergeMaskedInterfaceParams(
+                current.getCollectionInterfaceParam(),
+                paymentEditRequest.getCollectionInterfaceParam(),
+                "collectionInterfaceParam"));
+        paymentEditRequest.setPayInterfaceParam(mergeMaskedInterfaceParams(
+                current.getPayInterfaceParam(),
+                paymentEditRequest.getPayInterfaceParam(),
+                "payInterfaceParam"));
 
         return PatchBuilderUtil.from(paymentEditRequest).to(dto)
                 .str(paymentEditRequest::getPaymentNo, dto::setPaymentNo)
@@ -1026,6 +1064,50 @@ public class ChannelPaymentServiceImpl implements ChannelPaymentService {
                 .str(paymentEditRequest::getCheckoutCounterUrl, dto::setCheckoutCounterUrl)
                 .str(paymentEditRequest::getCurrency, dto::setCurrency)
                 .throwIfNoUpdate(new PakGoPayException(ResultCode.INVALID_PARAMS, "no data need to update"));
+    }
+
+    private String mergeMaskedInterfaceParams(String dbJson, String requestJson, String fieldName)
+            throws PakGoPayException {
+        if (requestJson == null || requestJson.isBlank()) {
+            return requestJson;
+        }
+        Map<String, Object> requestMap = parseInterfaceParamJson(requestJson, fieldName + " request");
+        Map<String, Object> dbMap = parseInterfaceParamJsonSafe(dbJson, fieldName + " db");
+        Map<String, Object> mergedMap = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : requestMap.entrySet()) {
+            String key = entry.getKey();
+            Object requestValue = entry.getValue();
+            if (isMaskedValue(requestValue) && dbMap.containsKey(key)) {
+                mergedMap.put(key, dbMap.get(key));
+            } else {
+                mergedMap.put(key, requestValue);
+            }
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(mergedMap);
+        } catch (Exception e) {
+            throw new PakGoPayException(ResultCode.INVALID_PARAMS,
+                    fieldName + " serialize failed: " + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> parseInterfaceParamJson(String json, String scene) throws PakGoPayException {
+        try {
+            return OBJECT_MAPPER.readValue(json, MAP_TYPE);
+        } catch (Exception e) {
+            throw new PakGoPayException(ResultCode.INVALID_PARAMS, scene + " parse failed: " + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> parseInterfaceParamJsonSafe(String json, String scene) throws PakGoPayException {
+        if (json == null || json.isBlank()) {
+            return new LinkedHashMap<>();
+        }
+        return parseInterfaceParamJson(json, scene);
+    }
+
+    private boolean isMaskedValue(Object value) {
+        return value instanceof String && ((String) value).contains("*");
     }
 
     @Override

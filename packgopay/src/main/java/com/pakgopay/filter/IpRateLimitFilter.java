@@ -1,5 +1,8 @@
 package com.pakgopay.filter;
 
+import com.pakgopay.common.enums.SystemConfigItemKeyEnum;
+import com.pakgopay.service.common.SystemConfigGroupService;
+import com.pakgopay.util.RateLimitConfigParserUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -8,11 +11,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import com.pakgopay.service.common.RateLimitConfigService;
 
 @Component
 public class IpRateLimitFilter extends OncePerRequestFilter {
@@ -38,11 +42,22 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
     }
 
     private final StringRedisTemplate stringRedisTemplate;
-    private final RateLimitConfigService rateLimitConfigService;
+    private final SystemConfigGroupService systemConfigGroupService;
 
-    public IpRateLimitFilter(StringRedisTemplate stringRedisTemplate, RateLimitConfigService rateLimitConfigService) {
+    @Value("${pakgopay.rate-limit.enabled:false}")
+    private boolean defaultEnabled;
+
+    @Value("${pakgopay.rate-limit.window-seconds:0}")
+    private long defaultWindowSeconds;
+
+    @Value("${pakgopay.rate-limit.max-requests:0}")
+    private long defaultMaxRequests;
+
+    public IpRateLimitFilter(
+            StringRedisTemplate stringRedisTemplate,
+            SystemConfigGroupService systemConfigGroupService) {
         this.stringRedisTemplate = stringRedisTemplate;
-        this.rateLimitConfigService = rateLimitConfigService;
+        this.systemConfigGroupService = systemConfigGroupService;
     }
 
     @Override
@@ -55,13 +70,19 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        RateLimitConfigService.RateLimitConfig config = rateLimitConfigService.getConfig();
-        if (config == null || !config.isEnabled()) {
+        boolean enabled = RateLimitConfigParserUtil.parseEnabled(
+                systemConfigGroupService.getConfigValue(SystemConfigItemKeyEnum.RATELIMIT_ENABLED),
+                defaultEnabled);
+        if (!enabled) {
             filterChain.doFilter(request, response);
             return;
         }
-        long windowSeconds = config.getWindowSeconds();
-        long maxRequests = config.getMaxRequests();
+        long windowSeconds = RateLimitConfigParserUtil.parseLong(
+                systemConfigGroupService.getConfigValue(SystemConfigItemKeyEnum.RATELIMIT_WINDOW_SECONDS),
+                defaultWindowSeconds);
+        long maxRequests = RateLimitConfigParserUtil.parseLong(
+                systemConfigGroupService.getConfigValue(SystemConfigItemKeyEnum.RATELIMIT_MAX_REQUESTS),
+                defaultMaxRequests);
         if (windowSeconds <= 0 || maxRequests <= 0) {
             filterChain.doFilter(request, response);
             return;
@@ -72,7 +93,10 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
             clientIp = "unknown";
         }
 
-        Long fixedQps = config.getFixedIpQpsMap().get(clientIp);
+        String fixedIpQpsRaw = systemConfigGroupService.getConfigValue(
+                SystemConfigItemKeyEnum.RATELIMIT_FIXED_IP_QPS, String.class);
+        Map<String, Long> fixedIpQpsMap = RateLimitConfigParserUtil.parseFixedIpQps(fixedIpQpsRaw);
+        Long fixedQps = fixedIpQpsMap.get(clientIp);
         if (fixedQps != null && fixedQps > 0) {
             if (isLimited(clientIp, windowSeconds, fixedQps)) {
                 respondRateLimited(response);
