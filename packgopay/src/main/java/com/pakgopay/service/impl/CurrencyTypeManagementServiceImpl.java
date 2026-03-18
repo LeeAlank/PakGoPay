@@ -1,31 +1,45 @@
 package com.pakgopay.service.impl;
 
+import com.alibaba.excel.EasyExcel;
 import com.pakgopay.common.enums.ResultCode;
+import com.pakgopay.common.enums.SyncTypeEnum;
 import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.currencyManagement.CurrencyReponse;
+import com.pakgopay.data.response.currencyManagement.CurrencySyncResponse;
 import com.pakgopay.mapper.CurrencyTypeMapper;
 import com.pakgopay.mapper.dto.CurrencyTypeDTO;
+import com.pakgopay.mapper.dto.CurrencyTypeSyncExcelRow;
 import com.pakgopay.service.CurrencyTypeManagementService;
 import com.pakgopay.service.common.CurrencyTimezoneService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.net.URI;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @Slf4j
 public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagementService {
+    private static final String INVALID_SYNC_FILE_MESSAGE = "sync file is invalid";
 
     @Autowired
     private CurrencyTypeMapper currencyTypeMapper;
     @Autowired
     private CurrencyTimezoneService currencyTimezoneService;
+
+    @Value("${pakgopay.currency-sync.excel-url}")
+    private String currencySyncExcelUrl;
 
     @Override
     public CommonResponse listCurrencyTypes(CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
@@ -56,13 +70,8 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
             currencyTypeRequest.setTimezone(timezone);
             CurrencyTypeDTO currencyTypeDTO = new CurrencyTypeDTO();
             BeanUtils.copyProperties(currencyTypeRequest, currencyTypeDTO);
-            Integer addResult = currencyTypeMapper.addNewCurrency(currencyTypeDTO);
-            if (addResult == 1) {
-                currencyTimezoneService.refreshCurrencyTimezoneCache(currencyTypeDTO.getCurrencyType());
-                return CommonResponse.success(ResultCode.SUCCESS);
-            } else {
-                return CommonResponse.fail(ResultCode.FAIL);
-            }
+            insertCurrencyType(currencyTypeDTO);
+            return CommonResponse.success(ResultCode.SUCCESS);
         } catch (DuplicateKeyException e) {
             return CommonResponse.fail(ResultCode.FAIL, "currency already exists");
         } catch (IllegalArgumentException e) {
@@ -107,6 +116,84 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
         }
     }
 
+    @Override
+    public CommonResponse syncData(CurrencyTypeRequest currencyTypeRequest, HttpServletRequest request) {
+        SyncTypeEnum syncType = SyncTypeEnum.fromType(currencyTypeRequest.getSyncType());
+        if (syncType == null) {
+            return CommonResponse.fail(ResultCode.ORDER_PARAM_VALID, "invalid syncType");
+        }
+        if (syncType == SyncTypeEnum.BANK_CODE) {
+            return CommonResponse.fail(ResultCode.FAIL, "sync bank code is not implemented");
+        }
+        return syncCurrencyTypes(currencyTypeRequest);
+    }
+
+    private CommonResponse syncCurrencyTypes(CurrencyTypeRequest currencyTypeRequest) {
+        try {
+            List<CurrencyTypeSyncExcelRow> rows;
+            try (InputStream inputStream = URI.create(currencySyncExcelUrl).toURL().openStream()) {
+                rows = EasyExcel.read(inputStream)
+                        .head(CurrencyTypeSyncExcelRow.class)
+                        .headRowNumber(2)
+                        .sheet()
+                        .doReadSync();
+            }
+
+            List<String> skippedCurrencies = new ArrayList<>();
+            List<String> invalidRows = new ArrayList<>();
+            int insertedCount = 0;
+            int totalRows = rows == null ? 0 : rows.size();
+
+            if (rows != null) {
+                for (int i = 0; i < rows.size(); i++) {
+                    CurrencyTypeSyncExcelRow row = rows.get(i);
+                    String invalidReason = validateSyncRow(row);
+                    if (invalidReason != null) {
+                        invalidRows.add("row " + (i + 2) + ": " + invalidReason);
+                        continue;
+                    }
+
+                    String currencyType = normalizeCurrencyType(row.getCurrencyType());
+                    if (currencyTypeMapper.getCurrencyByCurrencyType(currencyType) != null) {
+                        skippedCurrencies.add(currencyType);
+                        continue;
+                    }
+
+                    CurrencyTypeDTO currencyTypeDTO = new CurrencyTypeDTO();
+                    currencyTypeDTO.setCurrencyType(currencyType);
+                    currencyTypeDTO.setName(row.getName().trim());
+                    currencyTypeDTO.setIcon(row.getIcon().trim());
+                    currencyTypeDTO.setCurrencyAccuracy(parseCurrencyAccuracy(row.getCurrencyAccuracy()));
+                    currencyTypeDTO.setTimezone(normalizeTimezone(row.getTimezone()));
+                    currencyTypeDTO.setCreateBy(resolveOperatorName(currencyTypeRequest));
+                    currencyTypeDTO.setUpdateBy(resolveOperatorName(currencyTypeRequest));
+                    insertCurrencyType(currencyTypeDTO);
+                    insertedCount++;
+                }
+            }
+
+            CurrencySyncResponse response = new CurrencySyncResponse(
+                    currencySyncExcelUrl,
+                    totalRows,
+                    insertedCount,
+                    skippedCurrencies.size(),
+                    invalidRows.size(),
+                    skippedCurrencies,
+                    invalidRows
+            );
+            return CommonResponse.success(response);
+        } catch (IllegalArgumentException e) {
+            log.error("sync currency types invalid file content", e);
+            return CommonResponse.fail(ResultCode.SYNC_FILE_INVALID, INVALID_SYNC_FILE_MESSAGE);
+        } catch (Exception e) {
+            log.error("sync currency types failed", e);
+            if (isCurrencySyncContentError(e)) {
+                return CommonResponse.fail(ResultCode.SYNC_FILE_INVALID, INVALID_SYNC_FILE_MESSAGE);
+            }
+            return CommonResponse.fail(ResultCode.FAIL, "sync currency type failed " + e.getMessage());
+        }
+    }
+
     private String normalizeTimezone(String timezone) {
         if (timezone == null || timezone.isBlank()) {
             return null;
@@ -116,5 +203,84 @@ public class CurrencyTypeManagementServiceImpl implements CurrencyTypeManagement
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid timezone: " + timezone);
         }
+    }
+
+    private void insertCurrencyType(CurrencyTypeDTO currencyTypeDTO) {
+        long now = System.currentTimeMillis() / 1000;
+        if (currencyTypeDTO.getCreateTime() == null) {
+            currencyTypeDTO.setCreateTime(now);
+        }
+        if (currencyTypeDTO.getUpdateTime() == null) {
+            currencyTypeDTO.setUpdateTime(now);
+        }
+        Integer addResult = currencyTypeMapper.addNewCurrency(currencyTypeDTO);
+        if (addResult == null || addResult != 1) {
+            throw new IllegalStateException("insert currency type failed");
+        }
+        currencyTimezoneService.refreshCurrencyTimezoneCache(currencyTypeDTO.getCurrencyType());
+    }
+
+    private String validateSyncRow(CurrencyTypeSyncExcelRow row) {
+        if (row == null) {
+            return "empty row";
+        }
+        if (row.getCurrencyType() == null || row.getCurrencyType().trim().isEmpty()) {
+            return "currencyType is empty";
+        }
+        if (row.getName() == null || row.getName().trim().isEmpty()) {
+            return "name is empty";
+        }
+        if (row.getIcon() == null || row.getIcon().trim().isEmpty()) {
+            return "icon is empty";
+        }
+        if (row.getCurrencyAccuracy() == null || row.getCurrencyAccuracy().trim().isEmpty()) {
+            return "currencyAccuracy is empty";
+        }
+        parseCurrencyAccuracy(row.getCurrencyAccuracy());
+        if (row.getTimezone() == null || row.getTimezone().trim().isEmpty()) {
+            return "timezone is empty";
+        }
+        normalizeTimezone(row.getTimezone());
+        return null;
+    }
+
+    private String normalizeCurrencyType(String currencyType) {
+        return currencyType == null ? null : currencyType.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private BigDecimal parseCurrencyAccuracy(String currencyAccuracy) {
+        try {
+            return new BigDecimal(currencyAccuracy.trim());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid currencyAccuracy: " + currencyAccuracy);
+        }
+    }
+
+    private String resolveOperatorName(CurrencyTypeRequest currencyTypeRequest) {
+        if (currencyTypeRequest == null) {
+            return "system";
+        }
+        if (currencyTypeRequest.getUserName() != null && !currencyTypeRequest.getUserName().trim().isEmpty()) {
+            return currencyTypeRequest.getUserName().trim();
+        }
+        if (currencyTypeRequest.getUserId() != null && !currencyTypeRequest.getUserId().trim().isEmpty()) {
+            return currencyTypeRequest.getUserId().trim();
+        }
+        return "system";
+    }
+
+    private boolean isCurrencySyncContentError(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String className = current.getClass().getName();
+            if (current instanceof IllegalArgumentException
+                    || current instanceof NumberFormatException
+                    || "com.alibaba.excel.exception.ExcelDataConvertException".equals(className)
+                    || "com.alibaba.excel.exception.ExcelAnalysisException".equals(className)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
