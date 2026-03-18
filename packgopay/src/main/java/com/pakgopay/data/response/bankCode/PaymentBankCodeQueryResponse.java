@@ -8,8 +8,5 @@ import java.util.List;
 @Data
 public class PaymentBankCodeQueryResponse {
     private Integer totalNumber;
-    private Integer pageNo;
-    private Integer pageSize;
     private List<PaymentBankCodeDto> paymentBankCodeDtoList;
 }
-

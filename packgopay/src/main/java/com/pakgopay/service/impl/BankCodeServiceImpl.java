@@ -52,16 +52,13 @@ public class BankCodeServiceImpl implements BankCodeService {
 
     @Override
     /**
-     * Query all bank codes under a currency and mark selected/enabled state for one payment channel.
+     * Query all bank codes under a currency and mark selected/status state for one payment channel.
      */
     public CommonResponse queryPaymentBankCode(PaymentBankCodeQueryRequest request) {
-        Integer totalNumber = bankCodeDictMapper.countByPaymentCurrency(request);
-        List<PaymentBankCodeDto> list = bankCodeDictMapper.pageByPaymentCurrency(request);
+        List<PaymentBankCodeDto> list = bankCodeDictMapper.listByPaymentCurrency(request);
 
         PaymentBankCodeQueryResponse response = new PaymentBankCodeQueryResponse();
-        response.setTotalNumber(totalNumber);
-        response.setPageNo(request.getPageNo());
-        response.setPageSize(request.getPageSize());
+        response.setTotalNumber(list == null ? 0 : list.size());
         response.setPaymentBankCodeDtoList(list);
         return CommonResponse.success(response);
     }

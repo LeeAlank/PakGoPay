@@ -6,6 +6,8 @@ import com.pakgopay.common.exception.PakGoPayException;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
+import com.pakgopay.data.reqeust.currencyTypeManagement.CurrencyTypeRequest;
+import com.pakgopay.data.reqeust.systemConfig.SystemSyncRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
@@ -26,6 +28,7 @@ import com.pakgopay.mapper.dto.RoleMenuDTO;
 import com.pakgopay.mapper.dto.UserDTO;
 import com.pakgopay.service.common.LoginLogService;
 import com.pakgopay.service.common.UserStatusService;
+import com.pakgopay.service.CurrencyTypeManagementService;
 import com.pakgopay.service.SystemConfigService;
 import com.pakgopay.thirdUtil.GoogleUtil;
 import com.pakgopay.thirdUtil.RedisUtil;
@@ -69,6 +72,9 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Autowired
     private UserStatusService userStatusService;
+
+    @Autowired
+    private CurrencyTypeManagementService currencyTypeManagementService;
 
     @Override
     public CommonResponse listRoles(String roleName) {
@@ -344,6 +350,15 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     public CommonResponse resetGoogleKey(String operator, String userId, String loginName) {
         log.info("start to reset google key for userId={}, loginName={}", userId, loginName);
         return resetKey(userId, loginName);
+    }
+
+    @Override
+    public CommonResponse syncSystemData(SystemSyncRequest request) {
+        CurrencyTypeRequest currencyTypeRequest = new CurrencyTypeRequest();
+        currencyTypeRequest.setSyncType(request.getSyncType());
+        currencyTypeRequest.setUserId(request.getUserId());
+        currencyTypeRequest.setUserName(request.getUserName());
+        return currencyTypeManagementService.syncData(currencyTypeRequest, null);
     }
 
     public CommonResponse resetKey(String userId, String userName) {

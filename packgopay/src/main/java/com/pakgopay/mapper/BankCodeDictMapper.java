@@ -31,7 +31,5 @@ public interface BankCodeDictMapper {
 
     List<BankCodeDictDto> pageByQuery(BankCodeQueryRequest request);
 
-    Integer countByPaymentCurrency(PaymentBankCodeQueryRequest request);
-
-    List<PaymentBankCodeDto> pageByPaymentCurrency(PaymentBankCodeQueryRequest request);
+    List<PaymentBankCodeDto> listByPaymentCurrency(PaymentBankCodeQueryRequest request);
 }

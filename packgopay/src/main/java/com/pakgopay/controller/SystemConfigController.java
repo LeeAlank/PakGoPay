@@ -12,6 +12,7 @@ import com.pakgopay.data.reqeust.systemConfig.EditUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
+import com.pakgopay.data.reqeust.systemConfig.SystemSyncRequest;
 import com.pakgopay.data.reqeust.systemConfig.SystemConfigGroupUpdateRequest;
 import com.pakgopay.data.reqeust.systemConfig.TelegramBroadcastRequest;
 import com.pakgopay.data.response.CommonResponse;
@@ -209,6 +210,17 @@ public class SystemConfigController {
         } catch (Exception e) {
             return CommonResponse.fail(ResultCode.FAIL, "update system config failed: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/sync")
+    public CommonResponse syncSystemData(
+            @RequestBody @Valid SystemSyncRequest request,
+            HttpServletRequest httpServletRequest) {
+        String operatorUserId = resolveOperatorUserIdFromRequest(httpServletRequest);
+        request.setUserId(operatorUserId);
+        CommonResponse response = systemConfigService.syncSystemData(request);
+        operateLogService.write(OperateInterfaceEnum.SYNC_CURRENCY_TYPE, operatorUserId, request);
+        return response;
     }
 
     @PostMapping("/telegramBroadcast")

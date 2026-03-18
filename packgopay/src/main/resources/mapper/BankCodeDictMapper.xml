@@ -151,15 +151,7 @@
         LIMIT #{pageSize} OFFSET #{offSet}
     </select>
 
-    <select id="countByPaymentCurrency"
-            parameterType="com.pakgopay.data.reqeust.bankCode.PaymentBankCodeQueryRequest"
-            resultType="java.lang.Integer">
-        SELECT COUNT(1)
-        FROM bank_code_dict
-        WHERE currency_code = #{currencyCode}
-    </select>
-
-    <select id="pageByPaymentCurrency"
+    <select id="listByPaymentCurrency"
             parameterType="com.pakgopay.data.reqeust.bankCode.PaymentBankCodeQueryRequest"
             resultMap="PaymentBankCodeResultMap">
         SELECT
@@ -180,7 +172,6 @@
            AND pcb.bank_code = b.bank_code
         WHERE b.currency_code = #{currencyCode}
         ORDER BY b.bank_code ASC, b.id ASC
-        LIMIT #{pageSize} OFFSET #{offSet}
     </select>
 
 </mapper>

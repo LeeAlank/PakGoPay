@@ -3,6 +3,7 @@ package com.pakgopay.service;
 import com.pakgopay.data.reqeust.roleManagement.AddRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.DeleteRoleRequest;
 import com.pakgopay.data.reqeust.roleManagement.ModifyRoleRequest;
+import com.pakgopay.data.reqeust.systemConfig.SystemSyncRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
@@ -34,4 +35,6 @@ public interface SystemConfigService {
     public CommonResponse deleteRole(DeleteRoleRequest deleteRoleRequest, HttpServletRequest request);
 
     public CommonResponse resetGoogleKey(String operator,String userId,String loginName);
+
+    public CommonResponse syncSystemData(SystemSyncRequest request);
 }
