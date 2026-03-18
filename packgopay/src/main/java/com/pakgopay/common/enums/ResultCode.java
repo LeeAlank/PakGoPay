@@ -27,6 +27,7 @@ public enum ResultCode {
     USER_HAS_NO_ROLE_PERMISSION(100116, "user has no permission to view any menus"),
     CLIENT_INFO_MISMATCH(100117, "request failed"),
     HTTP_REQUEST_ERROR(100118, "http request error"),
+    SYNC_FILE_INVALID(100119, "sync file is invalid"),
 
     // order code start with 1002
     ORDER_PARAM_VALID(100201, "request param is valid"),

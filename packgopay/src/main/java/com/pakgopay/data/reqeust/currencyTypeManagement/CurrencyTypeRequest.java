@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 
 @Data
 public class CurrencyTypeRequest extends BaseRequest {
+    private Integer syncType;
     private Integer id;
     private String name;
     private String currencyType;

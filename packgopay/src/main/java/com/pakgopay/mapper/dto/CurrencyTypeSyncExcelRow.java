@@ -3,8 +3,6 @@ package com.pakgopay.mapper.dto;
 import com.alibaba.excel.annotation.ExcelProperty;
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 @Data
 public class CurrencyTypeSyncExcelRow {
     @ExcelProperty(index = 0)
@@ -17,7 +15,7 @@ public class CurrencyTypeSyncExcelRow {
     private String icon;
 
     @ExcelProperty(index = 3)
-    private BigDecimal currencyAccuracy;
+    private String currencyAccuracy;
 
     @ExcelProperty(index = 4)
     private String timezone;
