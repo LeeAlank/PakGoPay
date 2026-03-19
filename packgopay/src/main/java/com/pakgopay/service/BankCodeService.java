@@ -17,7 +17,5 @@ public interface BankCodeService {
 
     CommonResponse syncBankCodesFromRows(
             List<BankCodeSyncExcelRow> rows,
-            String source,
-            String userId,
-            String userName);
+            String source);
 }

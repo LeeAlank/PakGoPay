@@ -14,6 +14,8 @@ public interface CurrencyTypeMapper {
 
     Integer addNewCurrency(CurrencyTypeDTO currencyTypeDTO);
 
+    Integer batchAddNewCurrency(List<CurrencyTypeDTO> list);
+
     Integer updateCurrencyType(CurrencyTypeDTO currencyTypeDTO);
 
     CurrencyTypeDTO getCurrencyById(Integer id);
@@ -21,4 +23,6 @@ public interface CurrencyTypeMapper {
     String getTimezoneByCurrencyType(String currencyType);
 
     CurrencyTypeDTO getCurrencyByCurrencyType(String currencyType);
+
+    List<CurrencyTypeDTO> listByCurrencyTypes(List<String> currencyTypes);
 }

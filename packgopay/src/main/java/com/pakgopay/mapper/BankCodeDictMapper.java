@@ -12,13 +12,13 @@ import java.util.List;
 @Mapper
 public interface BankCodeDictMapper {
 
-    int insert(BankCodeDictDto dto);
+    int batchInsert(@Param("list") List<BankCodeDictDto> list);
 
-    int updateById(BankCodeDictDto dto);
+    int batchUpdateById(@Param("list") List<BankCodeDictDto> list);
 
     int deleteById(@Param("id") Long id);
 
-    BankCodeDictDto findById(@Param("id") Long id);
+    List<BankCodeDictDto> listByIds(@Param("ids") List<Long> ids);
 
     List<BankCodeDictDto> listByCurrencyCode(@Param("currencyCode") String currencyCode);
 

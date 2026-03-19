@@ -400,9 +400,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             }
             return bankCodeService.syncBankCodesFromRows(
                     rows,
-                    bankCodeSyncExcelUrl,
-                    request.getUserId(),
-                    request.getUserName());
+                    bankCodeSyncExcelUrl);
         } catch (Exception e) {
             log.error("sync system data failed", e);
             return CommonResponse.fail(ResultCode.FAIL, "sync system data failed " + e.getMessage());

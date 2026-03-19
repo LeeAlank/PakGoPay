@@ -236,33 +236,17 @@ public class BankCodeServiceImpl implements BankCodeService {
      */
     public CommonResponse syncBankCodesFromRows(
             List<BankCodeSyncExcelRow> rows,
-            String source,
-            String userId,
-            String userName) {
+            String source) {
         List<String> invalidRows = new ArrayList<>();
-        int insertedCount = 0;
-        int updatedCount = 0;
         int totalRows = rows == null ? 0 : rows.size();
         long now = System.currentTimeMillis() / 1000;
-
-        if (rows != null) {
-            for (int i = 0; i < rows.size(); i++) {
-                BankCodeSyncExcelRow row = rows.get(i);
-                String invalidReason = validateSyncRow(row);
-                if (invalidReason != null) {
-                    invalidRows.add("row " + (i + 2) + ": " + invalidReason);
-                    continue;
-                }
-
-                BankCodeDictDto dto = buildSyncDto(row, now);
-                BankCodeDictDto db = bankCodeDictMapper.findById(dto.getId());
-                if (db == null) {
-                    insertedCount += bankCodeDictMapper.insert(dto);
-                } else {
-                    updatedCount += bankCodeDictMapper.updateById(dto);
-                }
-            }
-        }
+        // 1) Validate + normalize + deduplicate by id.
+        LinkedHashMap<Long, BankCodeDictDto> dedupMap = collectValidBankCodeRows(rows, now, invalidRows);
+        // 2) Compare with DB and split into insert/update sets.
+        BankCodeSyncPlan syncPlan = buildBankCodeSyncPlan(dedupMap);
+        // 3) Persist in batch mode.
+        int insertedCount = persistBankCodeInserts(syncPlan.toInsert);
+        int updatedCount = persistBankCodeUpdates(syncPlan.toUpdate);
 
         log.info("syncBankCodesFromRows done, source={}, totalRows={}, insertedCount={}, updatedCount={}, invalidCount={}",
                 source, totalRows, insertedCount, updatedCount, invalidRows.size());
@@ -274,6 +258,80 @@ public class BankCodeServiceImpl implements BankCodeService {
                 invalidRows.size(),
                 invalidRows
         ));
+    }
+
+    /**
+     * Validate and normalize excel rows, then deduplicate by id.
+     */
+    private LinkedHashMap<Long, BankCodeDictDto> collectValidBankCodeRows(
+            List<BankCodeSyncExcelRow> rows,
+            long now,
+            List<String> invalidRows) {
+        LinkedHashMap<Long, BankCodeDictDto> dedupMap = new LinkedHashMap<>();
+        if (rows == null || rows.isEmpty()) {
+            return dedupMap;
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            BankCodeSyncExcelRow row = rows.get(i);
+            String invalidReason = validateSyncRow(row);
+            if (invalidReason != null) {
+                invalidRows.add("row " + (i + 2) + ": " + invalidReason);
+                continue;
+            }
+            BankCodeDictDto dto = buildSyncDto(row, now);
+            // Same id appears multiple times in file: keep the last one.
+            dedupMap.put(dto.getId(), dto);
+        }
+        return dedupMap;
+    }
+
+    /**
+     * Split deduplicated rows into insert and update lists by current DB state.
+     */
+    private BankCodeSyncPlan buildBankCodeSyncPlan(LinkedHashMap<Long, BankCodeDictDto> dedupMap) {
+        List<BankCodeDictDto> toInsert = new ArrayList<>();
+        List<BankCodeDictDto> toUpdate = new ArrayList<>();
+        if (dedupMap == null || dedupMap.isEmpty()) {
+            return new BankCodeSyncPlan(toInsert, toUpdate);
+        }
+
+        List<Long> ids = new ArrayList<>(dedupMap.keySet());
+        // Load existing records once, then do in-memory split.
+        List<BankCodeDictDto> exists = bankCodeDictMapper.listByIds(ids);
+        Map<Long, Boolean> existsMap = new HashMap<>();
+        for (BankCodeDictDto dto : exists) {
+            existsMap.put(dto.getId(), Boolean.TRUE);
+        }
+        for (Map.Entry<Long, BankCodeDictDto> entry : dedupMap.entrySet()) {
+            if (Boolean.TRUE.equals(existsMap.get(entry.getKey()))) {
+                toUpdate.add(entry.getValue());
+            } else {
+                toInsert.add(entry.getValue());
+            }
+        }
+        return new BankCodeSyncPlan(toInsert, toUpdate);
+    }
+
+    /**
+     * Batch insert rows if needed.
+     */
+    private int persistBankCodeInserts(List<BankCodeDictDto> toInsert) {
+        if (toInsert == null || toInsert.isEmpty()) {
+            return 0;
+        }
+        // One SQL batch insert.
+        return bankCodeDictMapper.batchInsert(toInsert);
+    }
+
+    /**
+     * Batch update rows if needed.
+     */
+    private int persistBankCodeUpdates(List<BankCodeDictDto> toUpdate) {
+        if (toUpdate == null || toUpdate.isEmpty()) {
+            return 0;
+        }
+        // One SQL batch update.
+        return bankCodeDictMapper.batchUpdateById(toUpdate);
     }
 
     /**
@@ -325,5 +383,18 @@ public class BankCodeServiceImpl implements BankCodeService {
 
     private String normalizeCurrencyCode(String currencyCode) {
         return currencyCode == null ? null : currencyCode.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * Internal plan object for bank code sync persistence.
+     */
+    private static class BankCodeSyncPlan {
+        private final List<BankCodeDictDto> toInsert;
+        private final List<BankCodeDictDto> toUpdate;
+
+        private BankCodeSyncPlan(List<BankCodeDictDto> toInsert, List<BankCodeDictDto> toUpdate) {
+            this.toInsert = toInsert;
+            this.toUpdate = toUpdate;
+        }
     }
 }

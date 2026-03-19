@@ -45,6 +45,26 @@
         ) values (#{currencyType},#{name},#{icon},#{createTime},#{createBy},#{updateTime},#{updateBy},#{remark},#{currencyAccuracy},#{timezone})
     </insert>
 
+    <insert id="batchAddNewCurrency">
+        INSERT INTO currency (
+            <include refid="insertColumn"/>
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.currencyType},
+                #{item.name},
+                #{item.icon},
+                #{item.createTime},
+                #{item.createBy},
+                #{item.updateTime},
+                #{item.updateBy},
+                #{item.remark},
+                #{item.currencyAccuracy},
+                #{item.timezone}
+            )
+        </foreach>
+    </insert>
+
     <update id="updateCurrencyType">
         UPDATE currency
         <set>
@@ -88,6 +108,16 @@
         FROM currency
         WHERE currency_type = #{currencyType}
         LIMIT 1
+    </select>
+
+    <select id="listByCurrencyTypes" resultMap="currencyTypeMap">
+        SELECT
+        <include refid="allColumn"/>
+        FROM currency
+        WHERE currency_type IN
+        <foreach collection="list" item="currencyType" open="(" separator="," close=")">
+            #{currencyType}
+        </foreach>
     </select>
 
 </mapper>
