@@ -10,7 +10,7 @@ public class OperateLogQueryRequest extends BaseRequest {
 
     private Integer operateType;
 
-    private String operateUserId;
+    private String operateUserName;
 
     private Long startTime;
 

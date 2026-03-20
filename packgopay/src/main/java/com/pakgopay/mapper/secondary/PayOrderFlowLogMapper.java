@@ -1,0 +1,18 @@
+package com.pakgopay.mapper.secondary;
+
+import com.pakgopay.mapper.dto.OrderFlowLogDto;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+public interface PayOrderFlowLogMapper {
+
+    int insert(OrderFlowLogDto dto);
+
+    int insertBatch(List<OrderFlowLogDto> list);
+
+    List<OrderFlowLogDto> listByTransactionNo(
+            @Param("transactionNo") String transactionNo,
+            @Param("startTime") Long startTime,
+            @Param("endTime") Long endTime);
+}

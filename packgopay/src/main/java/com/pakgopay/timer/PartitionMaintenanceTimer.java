@@ -2,6 +2,7 @@ package com.pakgopay.timer;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -27,6 +28,7 @@ public class PartitionMaintenanceTimer {
     private StringRedisTemplate redisTemplate;
 
     @Autowired
+    @Qualifier("primaryJdbcTemplate")
     private JdbcTemplate jdbcTemplate;
 
     @EventListener(ApplicationReadyEvent.class)
@@ -49,6 +51,7 @@ public class PartitionMaintenanceTimer {
             return;
         }
         try {
+            logDataSourceContext(source);
             LocalDate firstDayOfCurrentMonth = LocalDate.now(ZoneOffset.UTC)
                     .with(TemporalAdjusters.firstDayOfMonth());
             for (int i = 0; i <= FUTURE_MONTHS_TO_PRECREATE; i++) {
@@ -67,6 +70,22 @@ public class PartitionMaintenanceTimer {
             if (lockVal.equals(currentVal)) {
                 redisTemplate.delete(LOCK_KEY);
             }
+        }
+    }
+
+    private void logDataSourceContext(String source) {
+        try {
+            String database = jdbcTemplate.queryForObject("select current_database()", String.class);
+            String schema = jdbcTemplate.queryForObject("select current_schema()", String.class);
+            String searchPath = jdbcTemplate.queryForObject("select current_setting('search_path')", String.class);
+            String collectionOrder = jdbcTemplate.queryForObject(
+                    "select to_regclass('public.collection_order')", String.class);
+            String payOrder = jdbcTemplate.queryForObject(
+                    "select to_regclass('public.pay_order')", String.class);
+            log.info("partition datasource context, source={}, database={}, schema={}, searchPath={}, public.collection_order={}, public.pay_order={}",
+                    source, database, schema, searchPath, collectionOrder, payOrder);
+        } catch (Exception e) {
+            log.error("partition datasource context failed, source={}, message={}", source, e.getMessage());
         }
     }
 

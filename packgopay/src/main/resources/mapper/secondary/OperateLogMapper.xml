@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.pakgopay.mapper.OperateLogMapper">
+<mapper namespace="com.pakgopay.mapper.secondary.OperateLogMapper">
 
     <resultMap id="OperateLogResultMap" type="com.pakgopay.mapper.dto.OperateLogDto">
         <id column="id" property="id" javaType="java.lang.Long"/>

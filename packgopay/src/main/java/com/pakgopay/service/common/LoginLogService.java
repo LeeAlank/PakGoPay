@@ -1,6 +1,6 @@
 package com.pakgopay.service.common;
 
-import com.pakgopay.mapper.LoginLogMapper;
+import com.pakgopay.mapper.secondary.LoginLogMapper;
 import com.pakgopay.mapper.UserMapper;
 import com.pakgopay.mapper.dto.LoginLogDto;
 import com.pakgopay.mapper.dto.UserDTO;
