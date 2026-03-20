@@ -1,5 +1,6 @@
 package com.pakgopay.mapper;
 
+import com.pakgopay.data.reqeust.systemConfig.RoleQueryRequest;
 import com.pakgopay.mapper.dto.Role;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -15,7 +16,13 @@ public interface RoleMapper {
 
     List<Role> getRoleListByRoleName(@Param(value = "roleName") String roleName);
 
+    Integer countByQuery(RoleQueryRequest request);
+
+    List<Role> pageByQuery(RoleQueryRequest request);
+
     Integer addNewRole(@Param(value = "role") Role role);
+
+    Integer updateRole(@Param(value = "role") Role role);
 
     Integer deleteRole(@Param(value = "roleId") Integer roleId);
 }

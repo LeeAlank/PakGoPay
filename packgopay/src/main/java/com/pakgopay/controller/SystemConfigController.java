@@ -12,6 +12,7 @@ import com.pakgopay.data.reqeust.systemConfig.EditUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
+import com.pakgopay.data.reqeust.systemConfig.RoleQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.SystemSyncRequest;
 import com.pakgopay.data.reqeust.systemConfig.SystemConfigGroupUpdateRequest;
 import com.pakgopay.data.reqeust.systemConfig.TelegramBroadcastRequest;
@@ -83,6 +84,11 @@ public class SystemConfigController {
     @GetMapping("/roleList")
     public CommonResponse roleList(@RequestParam(required = false) String roleName){
         return systemConfigService.listRoles(roleName);
+    }
+
+    @PostMapping("/roleList")
+    public CommonResponse roleList(@RequestBody(required = false) @Valid RoleQueryRequest roleQueryRequest){
+        return systemConfigService.listRoles(roleQueryRequest);
     }
 
     @PostMapping("/loginUserList")

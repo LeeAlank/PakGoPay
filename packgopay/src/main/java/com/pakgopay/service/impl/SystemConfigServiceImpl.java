@@ -12,12 +12,14 @@ import com.pakgopay.data.reqeust.systemConfig.SystemSyncRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
+import com.pakgopay.data.reqeust.systemConfig.RoleQueryRequest;
 import com.pakgopay.data.response.CommonResponse;
 import com.pakgopay.data.response.RoleInfoResponse;
 import com.pakgopay.data.response.roleManagement.RoleMenuInfoResponse;
 import com.pakgopay.data.response.systemConfig.LoginLogQueryResponse;
 import com.pakgopay.data.response.systemConfig.LoginUserResponse;
 import com.pakgopay.data.response.systemConfig.OperateLogQueryResponse;
+import com.pakgopay.data.response.systemConfig.RoleQueryResponse;
 import com.pakgopay.data.response.systemConfig.ResetGoogleKeyResponse;
 import com.pakgopay.mapper.RoleMapper;
 import com.pakgopay.mapper.RoleMenuMapper;
@@ -110,11 +112,50 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             RoleInfoResponse roleInfoResponse = new RoleInfoResponse();
             roleInfoResponse.setRoleId(role.getRoleId());
             roleInfoResponse.setRoleName(role.getRoleName());
+            roleInfoResponse.setRemark(role.getRemark());
             roleInfoResponse.setCreateTime(role.getCreateTime().toString());
             roleInfoResponse.setUpdateTime(role.getUpdateTime()==null? null:role.getUpdateTime().toString());
             roleInfoResponses.add(roleInfoResponse);
         });
         return CommonResponse.success(roleInfoResponses);
+    }
+
+    @Override
+    public CommonResponse listRoles(RoleQueryRequest roleQueryRequest) {
+        if (roleQueryRequest == null) {
+            roleQueryRequest = new RoleQueryRequest();
+        }
+        if (roleQueryRequest.getPageNo() == null) {
+            roleQueryRequest.setPageNo(1);
+        }
+        if (roleQueryRequest.getPageSize() == null) {
+            roleQueryRequest.setPageSize(10);
+        }
+
+        Integer totalNumber = roleMapper.countByQuery(roleQueryRequest);
+        if (totalNumber == null) {
+            totalNumber = 0;
+        }
+        List<Role> roles = roleMapper.pageByQuery(roleQueryRequest);
+        List<RoleInfoResponse> roleInfoResponses = new ArrayList<>();
+        if (roles != null) {
+            roles.forEach(role -> {
+                RoleInfoResponse roleInfoResponse = new RoleInfoResponse();
+                roleInfoResponse.setRoleId(role.getRoleId());
+                roleInfoResponse.setRoleName(role.getRoleName());
+                roleInfoResponse.setRemark(role.getRemark());
+                roleInfoResponse.setCreateTime(role.getCreateTime().toString());
+                roleInfoResponse.setUpdateTime(role.getUpdateTime() == null ? null : role.getUpdateTime().toString());
+                roleInfoResponses.add(roleInfoResponse);
+            });
+        }
+
+        RoleQueryResponse response = new RoleQueryResponse();
+        response.setRoles(roleInfoResponses);
+        response.setTotalNumber(totalNumber);
+        response.setPageNo(roleQueryRequest.getPageNo());
+        response.setPageSize(roleQueryRequest.getPageSize());
+        return CommonResponse.success(response);
     }
 
     @Override
@@ -304,6 +345,16 @@ public class SystemConfigServiceImpl implements SystemConfigService {
             if (!StringUtils.hasText(operatorName)) {
                 return CommonResponse.fail(ResultCode.INVALID_TOKEN, ResultCode.INVALID_TOKEN.getMessage());
             }
+            Role role = new Role();
+            role.setRoleId(modifyRoleRequest.getRoleId());
+            role.setRoleName(modifyRoleRequest.getRoleName());
+            role.setRemark(modifyRoleRequest.getRemark());
+            role.setUpdateTime(Instant.now().getEpochSecond());
+            Integer updateResult = roleMapper.updateRole(role);
+            if (updateResult == null || updateResult <= 0) {
+                return CommonResponse.fail(ResultCode.FAIL, "modify role info failed when update role");
+            }
+
             List<RoleMenuDTO> roleMenuDTOS = new ArrayList<>();
             modifyRoleRequest.getMenuList().forEach(addMenuId -> {
                 RoleMenuDTO roleMenuDTO = new RoleMenuDTO();

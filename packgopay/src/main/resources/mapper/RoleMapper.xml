@@ -9,7 +9,7 @@
         <result column="role_name" property="roleName" javaType="java.lang.String"/>
         <result column="remark" property="remark" javaType="java.lang.String"/>
         <result column="create_time" property="createTime" javaType="java.lang.Long"/>
-        <result column="update_time" property="createTime" javaType="java.lang.Long"/>
+        <result column="update_time" property="updateTime" javaType="java.lang.Long"/>
     </resultMap>
 
     <select id="queryRoleInfoByUserId" resultType="java.lang.Integer">
@@ -17,16 +17,47 @@
     </select>
 
     <select id="getRoleList" resultMap="roleMap">
-        SELECT role_id, role_name, remark, create_time, update_time from role;
+        SELECT role_id, role_name, remark, create_time, update_time from role order by role_id asc;
     </select>
 
     <select id="getRoleListByRoleName" resultMap="roleMap">
-        SELECT role_id, role_name, remark, create_time, update_time from role where role_name = #{roleName}
+        SELECT role_id, role_name, remark, create_time, update_time from role where role_name = #{roleName} order by role_id asc
+    </select>
+
+    <sql id="RoleWhere">
+        <where>
+            <if test="roleName != null and roleName != ''">
+                AND role_name = #{roleName}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countByQuery" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM role
+        <include refid="RoleWhere"/>
+    </select>
+
+    <select id="pageByQuery" resultMap="roleMap">
+        SELECT role_id, role_name, remark, create_time, update_time
+        FROM role
+        <include refid="RoleWhere"/>
+        ORDER BY role_id ASC
+        LIMIT #{pageSize} OFFSET #{offset}
     </select>
 
     <insert id="addNewRole" parameterType="com.pakgopay.mapper.dto.Role">
         INSERT INTO role (role_name, remark, create_time, update_time) values (#{role.roleName}, #{role.remark}, #{role.createTime}, #{role.updateTime})
     </insert>
+
+    <update id="updateRole" parameterType="com.pakgopay.mapper.dto.Role">
+        UPDATE role
+        SET
+            role_name = #{role.roleName},
+            remark = #{role.remark},
+            update_time = #{role.updateTime}
+        WHERE role_id = #{role.roleId}
+    </update>
 
     <delete id="deleteRole">
         DELETE FROM role where role_id = #{roleId}

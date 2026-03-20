@@ -7,12 +7,15 @@ import com.pakgopay.data.reqeust.systemConfig.SystemSyncRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.OperateLogQueryRequest;
 import com.pakgopay.data.reqeust.systemConfig.LoginUserRequest;
+import com.pakgopay.data.reqeust.systemConfig.RoleQueryRequest;
 import com.pakgopay.data.response.CommonResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
 public interface SystemConfigService {
 
     public CommonResponse listRoles(String roleName);
+
+    public CommonResponse listRoles(RoleQueryRequest roleQueryRequest);
 
     public CommonResponse listLoginUsers(LoginUserRequest loginUserRequest);
 
