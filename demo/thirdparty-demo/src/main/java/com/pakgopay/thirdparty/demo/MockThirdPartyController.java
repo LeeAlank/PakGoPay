@@ -44,7 +44,6 @@ public class MockThirdPartyController {
 
     static {
         MERCHANTS.put("24", new MerchantCredential("021fdff9059411f0", "75b7cb58f2f9fc7cf477172364c4ff39"));
-        MERCHANTS.put("374", new MerchantCredential("374", "9a979c9975b056985cd7387604e7e23b"));
     }
 
     @GetMapping("/health")
@@ -113,9 +112,9 @@ public class MockThirdPartyController {
         if (isBlank(orderNo) || isBlank(amount) || isBlank(notifyUrl)) {
             return ResponseEntity.ok(error("missing order_no or amount or notify_url"));
         }
-        if (!ThreadLocalRandom.current().nextBoolean()) {
-            return ResponseEntity.ok(error("测试失败"));
-        }
+//        if (!ThreadLocalRandom.current().nextBoolean()) {
+//            return ResponseEntity.ok(error("测试失败"));
+//        }
 
         OrderRecord record = new OrderRecord();
         record.type = type;
