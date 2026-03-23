@@ -265,11 +265,24 @@
           and create_time &lt; #{endTime}
     </select>
 
-    <select id="getCollectionOrderInfosByPaymentIds"
-            resultMap="CollectionOrderResultMap">
+    <resultMap id="PaymentAmountAggResultMap" type="com.pakgopay.mapper.dto.PaymentAmountAggDto">
+        <result property="paymentId" column="payment_id"/>
+        <result property="dayAmount" column="day_amount"/>
+        <result property="monthAmount" column="month_amount"/>
+    </resultMap>
 
+    <select id="sumCollectionAmountByPaymentIds" resultMap="PaymentAmountAggResultMap">
         SELECT
-        <include refid="BaseColumns"/>
+            payment_id,
+            COALESCE(SUM(
+                CASE
+                    WHEN create_time &gt;= #{dayStartTime}
+                        AND create_time &lt; #{nextDayStartTime}
+                    THEN amount
+                    ELSE 0
+                END
+            ), 0) AS day_amount,
+            COALESCE(SUM(amount), 0) AS month_amount
         FROM collection_order
         <where>
             <if test="paymentIds != null and !paymentIds.isEmpty()">
@@ -281,10 +294,10 @@
             <if test="paymentIds == null or paymentIds.isEmpty()">
                 AND 1 = 0
             </if>
-            AND create_time &gt;= #{startTime}
-            AND create_time &lt;  #{endTime}
+            AND create_time &gt;= #{monthStartTime}
+            AND create_time &lt;  #{nextMonthStartTime}
         </where>
-
+        GROUP BY payment_id
     </select>
 
     <sql id="CommonReportAggColumns">

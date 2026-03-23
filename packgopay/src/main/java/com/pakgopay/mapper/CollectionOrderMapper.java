@@ -6,6 +6,7 @@ import com.pakgopay.mapper.dto.ChannelReportDto;
 import com.pakgopay.mapper.dto.CurrencyReportDto;
 import com.pakgopay.mapper.dto.PaymentReportDto;
 import com.pakgopay.mapper.dto.MerchantReportDto;
+import com.pakgopay.mapper.dto.PaymentAmountAggDto;
 import com.pakgopay.timer.data.ReportCurrencyRange;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -61,11 +62,13 @@ public interface CollectionOrderMapper {
                           @Param("updateTime") Long updateTime,
                           @Param("remark") String remark);
 
-    /** Query orders by payment IDs and time range */
-    List<CollectionOrderDto> getCollectionOrderInfosByPaymentIds(
+    /** Query current day/month amount sums by payment IDs and month range */
+    List<PaymentAmountAggDto> sumCollectionAmountByPaymentIds(
             @Param("paymentIds") List<Long> paymentIds,
-            @Param("startTime") Long startTime,
-            @Param("endTime") Long endTime
+            @Param("monthStartTime") Long monthStartTime,
+            @Param("nextMonthStartTime") Long nextMonthStartTime,
+            @Param("dayStartTime") Long dayStartTime,
+            @Param("nextDayStartTime") Long nextDayStartTime
     );
 
     List<MerchantReportDto> listMerchantReportStatsBatch(@Param("ranges") List<ReportCurrencyRange> ranges,
