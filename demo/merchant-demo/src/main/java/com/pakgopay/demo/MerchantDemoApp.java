@@ -1073,6 +1073,9 @@ public class MerchantDemoApp {
         if (inner == null || outer == null) {
             return;
         }
+        // Disable default wheel behavior and handle wheel routing manually:
+        // inner scroll first, outer scroll only when inner reaches top/bottom.
+        inner.setWheelScrollingEnabled(false);
         MouseWheelListener listener = e -> {
             JScrollBar innerBar = inner.getVerticalScrollBar();
             if (innerBar == null) {
@@ -1080,6 +1083,9 @@ public class MerchantDemoApp {
                 return;
             }
             int rotation = e.getWheelRotation();
+            if (rotation == 0) {
+                return;
+            }
             int value = innerBar.getValue();
             int min = innerBar.getMinimum();
             int max = innerBar.getMaximum();
@@ -1087,10 +1093,19 @@ public class MerchantDemoApp {
             boolean atTop = value <= min;
             boolean atBottom = value + extent >= max;
             boolean down = rotation > 0;
-            if ((down && atBottom) || (!down && atTop)) {
+            boolean canInnerScroll = down ? !atBottom : !atTop;
+            if (canInnerScroll) {
+                int unit = Math.max(16, innerBar.getUnitIncrement(rotation));
+                int delta = rotation * unit * 2;
+                int target = Math.max(min, Math.min(max - extent, value + delta));
+                innerBar.setValue(target);
+                e.consume();
+            } else {
                 scrollOuter(outer, e);
             }
         };
+
+        // Register on all nested nodes to guarantee wheel capture.
         inner.addMouseWheelListener(listener);
         inner.getViewport().addMouseWheelListener(listener);
         if (inner.getViewport().getView() != null) {
