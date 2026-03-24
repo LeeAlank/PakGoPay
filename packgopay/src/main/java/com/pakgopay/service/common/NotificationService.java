@@ -75,6 +75,15 @@ public class NotificationService {
         return CommonResponse.success(wsMessage);
     }
 
+    public CommonResponse clearAll(HttpServletRequest request) {
+        String userId = getUserIdFromToken(request);
+        redisUtil.removeAllMessages(userId);
+        WsMessage wsMessage = new WsMessage();
+        wsMessage.setMessageCount(0L);
+        wsMessage.setMessages(List.of());
+        return CommonResponse.success(wsMessage);
+    }
+
     private long countUnread(String userId) {
         String userKey = USER_ZSET_PREFIX + userId;
         Long count = redisUtil.noReadMessageCount(userKey);

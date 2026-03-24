@@ -104,6 +104,15 @@ public class RedisUtil {
         redisTemplate.delete(bodyKey);
     }
 
+    public void removeAllMessages(String userId) {
+        String userKey = USER_ZSET_PREFIX + userId;
+        Set<String> bodyKeys = redisTemplate.opsForZSet().range(userKey, 0, -1);
+        if (bodyKeys != null && !bodyKeys.isEmpty()) {
+            redisTemplate.delete(bodyKeys);
+        }
+        redisTemplate.delete(userKey);
+    }
+
     public Long noReadMessageCount(String userKey) {
         Long count = redisTemplate.opsForZSet().size(userKey);
         return count == null ? 0 : count;

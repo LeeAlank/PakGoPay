@@ -33,4 +33,9 @@ public class NotationController {
         String messageId = request.getParameter("messageId");
         return notificationService.markRead(request, messageId);
     }
+
+    @PostMapping("/notation/clearAllNotations")
+    public CommonResponse clearAll(HttpServletRequest request) {
+        return notificationService.clearAll(request);
+    }
 }
