@@ -639,81 +639,61 @@ public class ChannelPaymentServiceImpl implements ChannelPaymentService {
         ZoneId zoneId = ZoneId.systemDefault();
         LocalDate today = LocalDate.now(zoneId);
         ZonedDateTime dayStart = today.atStartOfDay(zoneId);
+        long dayStartTime = dayStart.toEpochSecond();
+        long nextDayStartTime = dayStart.plusDays(1).toEpochSecond();
         ZonedDateTime monthStart = today.withDayOfMonth(1).atStartOfDay(zoneId);
         long monthStartTime = monthStart.toEpochSecond();
         long nextMonthStartTime = monthStart.plusMonths(1).toEpochSecond();
+
+        List<PaymentAmountAggDto> amountAggList;
         if (CommonConstant.SUPPORT_TYPE_COLLECTION.equals(supportType)) {
-            // order type Collection
-            List<CollectionOrderDto> collectionOrderDetailDtoList;
+            // order type Collection: aggregate in DB to avoid loading monthly details to JVM.
             try {
-                collectionOrderDetailDtoList =
-                        collectionOrderMapper.getCollectionOrderInfosByPaymentIds(
-                                enAblePaymentIds, monthStartTime, nextMonthStartTime);
+                amountAggList = collectionOrderMapper.sumCollectionAmountByPaymentIds(
+                        enAblePaymentIds, monthStartTime, nextMonthStartTime, dayStartTime, nextDayStartTime);
             } catch (Exception e) {
-                log.error("collectionOrderMapper getCollectionOrderInfosByPaymentIds failed, message {}", e.getMessage());
+                log.error("collectionOrderMapper sumCollectionAmountByPaymentIds failed, message {}", e.getMessage());
                 throw new PakGoPayException(ResultCode.DATA_BASE_ERROR);
             }
-
-            if (collectionOrderDetailDtoList == null || collectionOrderDetailDtoList.isEmpty()) {
-                return;
-            }
-
-            accumulateAmountSums(collectionOrderDetailDtoList, dayStart,
-                    currentDayAmountSum, currentMonthAmountSum, true);
         } else {
-            // order type Payout
-            List<PayOrderDto> payOrderDtoList;
+            // order type Payout: aggregate in DB to avoid loading monthly details to JVM.
             try {
-                payOrderDtoList =
-                        payOrderMapper.getPayOrderInfosByPaymentIds(
-                                enAblePaymentIds, monthStartTime, nextMonthStartTime);
+                amountAggList = payOrderMapper.sumPayAmountByPaymentIds(
+                        enAblePaymentIds, monthStartTime, nextMonthStartTime, dayStartTime, nextDayStartTime);
             } catch (Exception e) {
-                log.error("payOrderMapper getPayOrderInfosByPaymentIds failed, message {}", e.getMessage());
+                log.error("payOrderMapper sumPayAmountByPaymentIds failed, message {}", e.getMessage());
                 throw new PakGoPayException(ResultCode.DATA_BASE_ERROR);
             }
-
-            if (payOrderDtoList == null || payOrderDtoList.isEmpty()) {
-                return;
-            }
-
-            accumulateAmountSums(payOrderDtoList, dayStart,
-                    currentDayAmountSum, currentMonthAmountSum, false);
         }
+
+        if (amountAggList == null || amountAggList.isEmpty()) {
+            return;
+        }
+
+        accumulateAmountSums(amountAggList, currentDayAmountSum, currentMonthAmountSum);
 
     }
 
+    /**
+     * Merge DB aggregated day/month payment sums into in-memory maps.
+     */
     private void accumulateAmountSums(
-            List<?> orderDtoList,
-            ZonedDateTime dayStart,
+            List<PaymentAmountAggDto> amountAggList,
             Map<Long, BigDecimal> currentDayAmountSum,
-            Map<Long, BigDecimal> currentMonthAmountSum,
-            boolean isCollection) {
-        long dayStartTime = dayStart.toEpochSecond();
-        long nextDayStartTime = dayStart.plusDays(1).toEpochSecond();
-        // Aggregate per-payment daily/monthly totals; dto type depends on isCollection.
-        for (Object dto : orderDtoList) {
-            Long paymentId;
-            BigDecimal amount;
-            Long createTime;
-            if (isCollection) {
-                CollectionOrderDto orderDto = (CollectionOrderDto) dto;
-                paymentId = orderDto.getPaymentId();
-                amount = orderDto.getAmount();
-                createTime = orderDto.getCreateTime();
-            } else {
-                PayOrderDto orderDto = (PayOrderDto) dto;
-                paymentId = orderDto.getPaymentId();
-                amount = orderDto.getAmount();
-                createTime = orderDto.getCreateTime();
-            }
-            if (paymentId == null || amount == null || createTime == null) {
+            Map<Long, BigDecimal> currentMonthAmountSum) {
+        if (amountAggList == null || amountAggList.isEmpty()) {
+            return;
+        }
+        for (PaymentAmountAggDto agg : amountAggList) {
+            if (agg == null || agg.getPaymentId() == null) {
                 continue;
             }
-            // Add to daily sum if within today's range, always add to month sum.
-            if (createTime >= dayStartTime && createTime < nextDayStartTime) {
-                currentDayAmountSum.merge(paymentId, amount, BigDecimal::add);
-            }
-            currentMonthAmountSum.merge(paymentId, amount, BigDecimal::add);
+            currentDayAmountSum.put(
+                    agg.getPaymentId(),
+                    CalcUtil.defaultBigDecimal(agg.getDayAmount()));
+            currentMonthAmountSum.put(
+                    agg.getPaymentId(),
+                    CalcUtil.defaultBigDecimal(agg.getMonthAmount()));
         }
     }
 

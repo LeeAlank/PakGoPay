@@ -28,7 +28,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.MissingResourceException;
+import java.util.ResourceBundle;
 import java.util.Vector;
 import java.util.stream.Collectors;
 import javax.swing.Scrollable;
@@ -89,6 +92,7 @@ public class MerchantDemoApp {
     private JButton sendBtn;
 
     private Language currentLanguage = Language.EN;
+    private ResourceBundle bundle;
     private AppConfig appConfig;
     private String currentEndpointPath;
 
@@ -98,7 +102,8 @@ public class MerchantDemoApp {
 
     private void show() {
         applyGlobalTheme();
-        JFrame frame = new JFrame("Merchant Demo (Swing)");
+        bundle = loadBundle(currentLanguage);
+        JFrame frame = new JFrame(t("app.title"));
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1320, 860);
         frame.setMinimumSize(new Dimension(1200, 760));
@@ -119,7 +124,7 @@ public class MerchantDemoApp {
 
     private JPanel buildConfigPanel() {
         configPanel = new JPanel(new GridBagLayout());
-        setCardBorder(configPanel, "Connection");
+        setCardBorder(configPanel, t("panel.connection"));
         configPanel.setBackground(COLOR_PANEL);
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(4, 4, 4, 4);
@@ -144,13 +149,13 @@ public class MerchantDemoApp {
         c.gridx = 0;
         c.gridy = 0;
         c.weightx = 0;
-        configPanel.add(new JLabel("Base URL"), c);
+        configPanel.add(new JLabel(t("label.baseUrl")), c);
         c.gridx = 1;
         c.gridy = 0;
         c.weightx = 1;
         configPanel.add(baseUrlCombo, c);
 
-        languageLabel = new JLabel("Language");
+        languageLabel = new JLabel(t("label.language"));
         c.gridx = 2;
         c.gridy = 0;
         c.weightx = 0;
@@ -163,7 +168,7 @@ public class MerchantDemoApp {
         endpointCombo = new JComboBox<>(buildEndpoints());
         styleComboBox(endpointCombo);
         endpointCombo.addActionListener(e -> onEndpointChanged());
-        endpointLabel = new JLabel("API Endpoint");
+        endpointLabel = new JLabel(t("label.endpoint"));
         c.gridx = 0;
         c.gridy = 1;
         c.weightx = 0;
@@ -175,7 +180,7 @@ public class MerchantDemoApp {
         configPanel.add(endpointCombo, c);
         c.gridwidth = 1;
 
-        authLabel = new JLabel("api-key");
+        authLabel = new JLabel(t("label.apiKey"));
         c.gridx = 0;
         c.gridy = 2;
         c.weightx = 0;
@@ -186,7 +191,7 @@ public class MerchantDemoApp {
         c.weightx = 1;
         configPanel.add(tokenField, c);
 
-        signKeyLabel = new JLabel("signKey");
+        signKeyLabel = new JLabel(t("label.signKey"));
         c.gridx = 2;
         c.gridy = 2;
         c.weightx = 0;
@@ -206,7 +211,7 @@ public class MerchantDemoApp {
         endpointCommentArea.setForeground(COLOR_TEXT_MUTED);
         endpointCommentArea.setFont(FONT_NORMAL);
         endpointCommentScroll = new JScrollPane(endpointCommentArea);
-        endpointCommentScroll.setBorder(buildCardBorder("Endpoint Note"));
+        endpointCommentScroll.setBorder(buildCardBorder(t("panel.endpointNote")));
         endpointCommentScroll.getViewport().setBackground(new Color(248, 251, 255));
         c.gridx = 0;
         c.gridy = 3;
@@ -220,7 +225,7 @@ public class MerchantDemoApp {
 
     private JSplitPane buildCenterPanel() {
         queryPanel = new WidthTrackingPanel(new GridBagLayout());
-        setCardBorder(queryPanel, "Order Query");
+        setCardBorder(queryPanel, t("panel.orderRequest"));
         queryPanel.setBackground(COLOR_PANEL);
 
         GridBagConstraints c = new GridBagConstraints();
@@ -229,7 +234,7 @@ public class MerchantDemoApp {
         c.weightx = 1.0;
 
         dynamicParamPanel = new JPanel(new GridBagLayout());
-        setCardBorder(dynamicParamPanel, "Request Params");
+        setCardBorder(dynamicParamPanel, t("panel.requestParams"));
         dynamicParamPanel.setBackground(COLOR_PANEL);
         c.gridx = 0;
         c.gridy = 0;
@@ -238,13 +243,13 @@ public class MerchantDemoApp {
         queryPanel.add(dynamicParamPanel, c);
         c.gridwidth = 1;
 
-        loadBtn = new JButton("Reload Config");
+        loadBtn = new JButton(t("button.reload"));
         loadBtn.addActionListener(e -> handleReloadConfigAction());
-        saveBtn = new JButton("Save Config");
+        saveBtn = new JButton(t("button.save"));
         saveBtn.addActionListener(e -> saveConfigFromUi());
-        buildBodyBtn = new JButton("Build Query Body");
+        buildBodyBtn = new JButton(t("button.buildBody"));
         buildBodyBtn.addActionListener(e -> buildQueryBodyToEditor());
-        sendBtn = new JButton("Send");
+        sendBtn = new JButton(t("button.send"));
         sendBtn.addActionListener(e -> sendRequest());
         styleButton(loadBtn, false);
         styleButton(saveBtn, false);
@@ -344,8 +349,8 @@ public class MerchantDemoApp {
                 return new Insets(1, 1, 1, 1);
             }
         });
-        requestResponseTabs.addTab("Request JSON", requestBodyScroll);
-        requestResponseTabs.addTab("Raw Response", responseScroll);
+        requestResponseTabs.addTab(t("panel.requestJson"), requestBodyScroll);
+        requestResponseTabs.addTab(t("panel.rawResponse"), responseScroll);
         requestResponseTabs.setSelectedIndex(0);
         c.gridx = 0;
         c.gridy = 2;
@@ -364,7 +369,7 @@ public class MerchantDemoApp {
         table.getTableHeader().setBackground(new Color(241, 246, 255));
         table.getTableHeader().setForeground(COLOR_TEXT);
         parsedResultScroll = new JScrollPane(table);
-        parsedResultScroll.setBorder(buildCardBorder("Parsed Result"));
+        parsedResultScroll.setBorder(buildCardBorder(t("panel.parsedResult")));
         parsedResultScroll.getViewport().setBackground(COLOR_PANEL);
 
         queryPanelScroll = new JScrollPane(queryPanel);
@@ -412,22 +417,22 @@ public class MerchantDemoApp {
             }
             appConfig.getEndpointParamConfig().put(endpointPath, collectCurrentParamValues());
             configStore.save(appConfig);
-            JOptionPane.showMessageDialog(null, currentLanguage == Language.ZH ? "已保存" : "Saved");
+            JOptionPane.showMessageDialog(null, t("msg.saved"));
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(
                     null,
-                    (currentLanguage == Language.ZH ? "保存失败: " : "Save failed: ") + ex.getMessage());
+                    t("msg.saveFailedPrefix") + ex.getMessage());
         }
     }
 
     private void handleReloadConfigAction() {
-        String title = currentLanguage == Language.ZH ? "重载配置" : "Reload Config";
-        String message = currentLanguage == Language.ZH
-                ? "请选择重置范围"
-                : "Select reset scope";
-        String[] options = currentLanguage == Language.ZH
-                ? new String[]{"重置当前接口", "重置所有接口", "取消"}
-                : new String[]{"Reset Current Endpoint", "Reset All Endpoints", "Cancel"};
+        String title = t("dialog.reload.title");
+        String message = t("dialog.reload.message");
+        String[] options = new String[]{
+                t("dialog.reload.current"),
+                t("dialog.reload.all"),
+                t("dialog.reload.cancel")
+        };
         int choice = JOptionPane.showOptionDialog(
                 null,
                 message,
@@ -458,7 +463,7 @@ public class MerchantDemoApp {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(
                     null,
-                    (currentLanguage == Language.ZH ? "重置失败: " : "Reset failed: ") + ex.getMessage());
+                    t("msg.resetFailedPrefix") + ex.getMessage());
         }
     }
 
@@ -470,7 +475,7 @@ public class MerchantDemoApp {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(
                     null,
-                    (currentLanguage == Language.ZH ? "重置失败: " : "Reset failed: ") + ex.getMessage());
+                    t("msg.resetFailedPrefix") + ex.getMessage());
         }
     }
 
@@ -510,12 +515,12 @@ public class MerchantDemoApp {
         final String sendAuthorization = finalAuthorization;
         final String sendBody = finalRequestJson;
         responseArea.setText(
-                (currentLanguage == Language.ZH ? "请求地址: " : "Request URL: ") + url
+                t("msg.requestUrlPrefix") + url
                         + "\n"
-                        + (currentLanguage == Language.ZH ? "请求体: " : "Request Body: ")
+                        + t("msg.requestBodyPrefix")
                         + sendBody
                         + "\n\n"
-                        + (currentLanguage == Language.ZH ? "请求中..." : "Loading..."));
+                        + t("msg.loading"));
         requestResponseTabs.setSelectedIndex(1);
 
         SwingWorker<String, Void> worker = new SwingWorker<>() {
@@ -536,7 +541,7 @@ public class MerchantDemoApp {
                     }
                 } catch (Exception ex) {
                     responseArea.setText(
-                            (currentLanguage == Language.ZH ? "请求失败: " : "Request failed: ") + ex.getMessage());
+                            t("msg.requestFailedPrefix") + ex.getMessage());
                 }
             }
         };
@@ -766,7 +771,7 @@ public class MerchantDemoApp {
         c.gridwidth = 1;
 
         if (showAutoGenBtn) {
-            JButton autoGenBtn = new JButton(currentLanguage == Language.ZH ? "自动生成" : "Auto Gen");
+            JButton autoGenBtn = new JButton(t("button.autoGen"));
             styleButton(autoGenBtn, false);
             autoGenBtn.addActionListener(e -> input.setText(generateMerchantOrderNo()));
             c.gridx = 3;
@@ -788,6 +793,7 @@ public class MerchantDemoApp {
             return;
         }
         currentLanguage = selected;
+        bundle = loadBundle(currentLanguage);
         ApiEndpoint old = (ApiEndpoint) endpointCombo.getSelectedItem();
         String oldPath = old == null ? null : old.path;
         endpointCombo.setModel(new DefaultComboBoxModel<>(buildEndpoints()));
@@ -812,129 +818,76 @@ public class MerchantDemoApp {
     }
 
     private ApiEndpoint[] buildEndpoints() {
-        if (currentLanguage == Language.ZH) {
-            return new ApiEndpoint[]{
-                    new ApiEndpoint(
-                            "查询订单",
-                            "/pakGoPay/api/server/v1/queryOrder",
-                            "按 orderType + transactionNo / merchantOrderNo 查询单笔订单状态。",
-                            new ParamField[]{
-                                    new ParamField("merchantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                                    new ParamField("merchantOrderNo", "Merchant Order No", "商户订单号", "", ParamType.STRING),
-                                    new ParamField("orderType", "Order Type", "订单类型", "COLL", ParamType.STRING),
-                            }),
-                    new ApiEndpoint(
-                            "创建代收订单",
-                            "/pakGoPay/api/server/v1/createCollectionOrder",
-                            "创建商户代收订单（对外接口）。",
-                            new ParamField[]{
-                                    new ParamField("merchantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                                    new ParamField("merchantOrderNo", "Merchant Order No", "商户订单号", "", ParamType.STRING),
-                                    new ParamField("amount", "Amount", "金额", "100.00", ParamType.NUMBER),
-                                    new ParamField("currency", "Currency", "币种", "CNY", ParamType.STRING),
-                                    new ParamField("paymentNo", "Payment No", "通道编号", "alipay", ParamType.STRING),
-                                    new ParamField("notificationUrl", "Notification URL", "通知地址", "https://example.com/notify", ParamType.STRING),
-                                    new ParamField("clientIp", "Client IP", "客户端IP", "127.0.0.1", ParamType.STRING),
-                                    new ParamField("remark", "Remark", "备注", "", ParamType.STRING)
-                            }),
-                    new ApiEndpoint(
-                            "创建代付订单",
-                            "/pakGoPay/api/server/v1/createPayOutOrder",
-                            "创建商户代付订单（对外接口）。",
-                            new ParamField[]{
-                                    new ParamField("merchantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                                    new ParamField("merchantOrderNo", "Merchant Order No", "商户订单号", "", ParamType.STRING),
-                                    new ParamField("amount", "Amount", "金额", "100.00", ParamType.NUMBER),
-                                    new ParamField("currency", "Currency", "币种", "CNY", ParamType.STRING),
-                                    new ParamField("paymentNo", "Payment No", "通道编号", "alipay", ParamType.STRING),
-                                    new ParamField("notificationUrl", "Notification URL", "通知地址", "https://example.com/notify", ParamType.STRING),
-                                    new ParamField("clientIp", "Client IP", "客户端IP", "127.0.0.1", ParamType.STRING),
-                                    new ParamField("remark", "Remark", "备注", "", ParamType.STRING),
-                                    new ParamField("bankCode", "Bank Code", "银行编码", "", ParamType.STRING),
-                                    new ParamField("accountName", "Account Name", "账户名", "", ParamType.STRING),
-                                    new ParamField("accountNo", "Account No", "账号", "", ParamType.STRING)
-                            }),
-                    new ApiEndpoint(
-                            "查询余额",
-                            "/pakGoPay/api/server/v1/balance",
-                            "按币种查询商户余额。",
-                            new ParamField[]{
-                                    new ParamField("merhcantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                            })
-            };
-        }
-
         return new ApiEndpoint[]{
                 new ApiEndpoint(
-                        "Query Order",
+                        t("endpoint.queryOrder.name"),
                         "/pakGoPay/api/server/v1/queryOrder",
-                        "Query single order status by orderType + transactionNo / merchantOrderNo.",
+                        t("endpoint.queryOrder.comment"),
                         new ParamField[]{
-                                new ParamField("merchantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                                new ParamField("merchantOrderNo", "Merchant Order No", "商户订单号", "", ParamType.STRING),
-                                new ParamField("orderType", "Order Type", "订单类型", "COLL", ParamType.STRING),
+                                new ParamField("merchantId", t("field.merchantId"), t("field.merchantId"), "", ParamType.STRING),
+                                new ParamField("merchantOrderNo", t("field.merchantOrderNo"), t("field.merchantOrderNo"), "", ParamType.STRING),
+                                new ParamField("orderType", t("field.orderType"), t("field.orderType"), "COLL", ParamType.STRING),
                         }),
                 new ApiEndpoint(
-                        "Create Collection Order",
+                        t("endpoint.createCollection.name"),
                         "/pakGoPay/api/server/v1/createCollectionOrder",
-                        "Create merchant collection order (external API).",
+                        t("endpoint.createCollection.comment"),
                         new ParamField[]{
-                                new ParamField("merchantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                                new ParamField("merchantOrderNo", "Merchant Order No", "商户订单号", "", ParamType.STRING),
-                                new ParamField("amount", "Amount", "金额", "100.00", ParamType.NUMBER),
-                                new ParamField("currency", "Currency", "币种", "CNY", ParamType.STRING),
-                                new ParamField("paymentNo", "Payment No", "通道编号", "alipay", ParamType.STRING),
-                                new ParamField("notificationUrl", "Notification URL", "通知地址", "https://example.com/notify", ParamType.STRING),
-                                new ParamField("clientIp", "Client IP", "客户端IP", "127.0.0.1", ParamType.STRING),
-                                new ParamField("remark", "Remark", "备注", "", ParamType.STRING)
+                                new ParamField("merchantId", t("field.merchantId"), t("field.merchantId"), "", ParamType.STRING),
+                                new ParamField("merchantOrderNo", t("field.merchantOrderNo"), t("field.merchantOrderNo"), "", ParamType.STRING),
+                                new ParamField("amount", t("field.amount"), t("field.amount"), "100.00", ParamType.NUMBER),
+                                new ParamField("currency", t("field.currency"), t("field.currency"), "CNY", ParamType.STRING),
+                                new ParamField("paymentNo", t("field.paymentNo"), t("field.paymentNo"), "alipay", ParamType.STRING),
+                                new ParamField("notificationUrl", t("field.notificationUrl"), t("field.notificationUrl"), "https://example.com/notify", ParamType.STRING),
+                                new ParamField("clientIp", t("field.clientIp"), t("field.clientIp"), "127.0.0.1", ParamType.STRING),
+                                new ParamField("remark", t("field.remark"), t("field.remark"), "", ParamType.STRING)
                         }),
                 new ApiEndpoint(
-                        "Create Payout Order",
+                        t("endpoint.createPayout.name"),
                         "/pakGoPay/api/server/v1/createPayOutOrder",
-                        "Create merchant payout order (external API).",
+                        t("endpoint.createPayout.comment"),
                         new ParamField[]{
-                                new ParamField("merchantId", "Merchant ID", "商户ID", "", ParamType.STRING),
-                                new ParamField("merchantOrderNo", "Merchant Order No", "商户订单号", "", ParamType.STRING),
-                                new ParamField("amount", "Amount", "金额", "100.00", ParamType.NUMBER),
-                                new ParamField("currency", "Currency", "币种", "CNY", ParamType.STRING),
-                                new ParamField("paymentNo", "Payment No", "通道编号", "alipay", ParamType.STRING),
-                                new ParamField("notificationUrl", "Notification URL", "通知地址", "https://example.com/notify", ParamType.STRING),
-                                new ParamField("clientIp", "Client IP", "客户端IP", "127.0.0.1", ParamType.STRING),
-                                new ParamField("remark", "Remark", "备注", "", ParamType.STRING),
-                                new ParamField("bankCode", "Bank Code", "银行编码", "", ParamType.STRING),
-                                new ParamField("accountName", "Account Name", "账户名", "", ParamType.STRING),
-                                new ParamField("accountNo", "Account No", "账号", "", ParamType.STRING)
+                                new ParamField("merchantId", t("field.merchantId"), t("field.merchantId"), "", ParamType.STRING),
+                                new ParamField("merchantOrderNo", t("field.merchantOrderNo"), t("field.merchantOrderNo"), "", ParamType.STRING),
+                                new ParamField("amount", t("field.amount"), t("field.amount"), "100.00", ParamType.NUMBER),
+                                new ParamField("currency", t("field.currency"), t("field.currency"), "CNY", ParamType.STRING),
+                                new ParamField("paymentNo", t("field.paymentNo"), t("field.paymentNo"), "alipay", ParamType.STRING),
+                                new ParamField("notificationUrl", t("field.notificationUrl"), t("field.notificationUrl"), "https://example.com/notify", ParamType.STRING),
+                                new ParamField("clientIp", t("field.clientIp"), t("field.clientIp"), "127.0.0.1", ParamType.STRING),
+                                new ParamField("remark", t("field.remark"), t("field.remark"), "", ParamType.STRING),
+                                new ParamField("bankCode", t("field.bankCode"), t("field.bankCode"), "", ParamType.STRING),
+                                new ParamField("accountName", t("field.accountName"), t("field.accountName"), "", ParamType.STRING),
+                                new ParamField("accountNo", t("field.accountNo"), t("field.accountNo"), "", ParamType.STRING)
                         }),
                 new ApiEndpoint(
-                        "Query Balance",
+                        t("endpoint.balance.name"),
                         "/pakGoPay/api/server/v1/balance",
-                        "Query merchant balance by currency.",
+                        t("endpoint.balance.comment"),
                         new ParamField[]{
-                                new ParamField("merhcantId", "Merchant ID", "商户ID", "", ParamType.STRING),
+                                new ParamField("merhcantId", t("field.merchantId"), t("field.merchantId"), "", ParamType.STRING),
                         })
         };
     }
 
     private void applyLanguageTexts() {
-        boolean zh = currentLanguage == Language.ZH;
-        setTitle(configPanel, zh ? "连接配置" : "Connection");
-        setTitle(queryPanel, zh ? "订单请求" : "Order Request");
-        setTitle(dynamicParamPanel, zh ? "请求参数" : "Request Params");
-        setTitle(endpointCommentScroll, zh ? "接口说明" : "Endpoint Note");
-        setTitle(requestBodyScroll, zh ? "请求 JSON" : "Request JSON");
-        setTitle(parsedResultScroll, zh ? "解析结果" : "Parsed Result");
-        setTitle(responseScroll, zh ? "原始响应" : "Raw Response");
-        requestResponseTabs.setTitleAt(0, zh ? "请求JSON" : "Request JSON");
-        requestResponseTabs.setTitleAt(1, zh ? "原始响应" : "Raw Response");
+        setTitle(configPanel, t("panel.connection"));
+        setTitle(queryPanel, t("panel.orderRequest"));
+        setTitle(dynamicParamPanel, t("panel.requestParams"));
+        setTitle(endpointCommentScroll, t("panel.endpointNote"));
+        setTitle(requestBodyScroll, t("panel.requestJson"));
+        setTitle(parsedResultScroll, t("panel.parsedResult"));
+        setTitle(responseScroll, t("panel.rawResponse"));
+        requestResponseTabs.setTitleAt(0, t("panel.requestJsonCompact"));
+        requestResponseTabs.setTitleAt(1, t("panel.rawResponse"));
 
-        endpointLabel.setText(zh ? "接口选择" : "API Endpoint");
-        authLabel.setText("api-key");
-        signKeyLabel.setText("signKey");
-        languageLabel.setText(zh ? "语言" : "Language");
-        saveBtn.setText(zh ? "保存配置" : "Save Config");
-        loadBtn.setText(zh ? "重载配置" : "Reload Config");
-        buildBodyBtn.setText(zh ? "生成请求体" : "Build Query Body");
-        sendBtn.setText(zh ? "发送" : "Send");
+        endpointLabel.setText(t("label.endpoint"));
+        authLabel.setText(t("label.apiKey"));
+        signKeyLabel.setText(t("label.signKey"));
+        languageLabel.setText(t("label.language"));
+        saveBtn.setText(t("button.save"));
+        loadBtn.setText(t("button.reload"));
+        buildBodyBtn.setText(t("button.buildBody"));
+        sendBtn.setText(t("button.send"));
     }
 
     private void setTitle(JComponent component, String title) {
@@ -1406,6 +1359,19 @@ public class MerchantDemoApp {
     private void setSelectedBaseUrl(String baseUrl) {
         String value = (baseUrl == null || baseUrl.isBlank()) ? "http://127.0.0.1:8080" : baseUrl.trim();
         baseUrlCombo.setSelectedItem(value);
+    }
+
+    private ResourceBundle loadBundle(Language language) {
+        Locale locale = language == Language.ZH ? Locale.SIMPLIFIED_CHINESE : Locale.ENGLISH;
+        return ResourceBundle.getBundle("i18n.messages", locale);
+    }
+
+    private String t(String key) {
+        try {
+            return bundle == null ? key : bundle.getString(key);
+        } catch (MissingResourceException ignored) {
+            return key;
+        }
     }
 
     private static class ApiEndpoint {

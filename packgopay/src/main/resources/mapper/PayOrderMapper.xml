@@ -241,28 +241,39 @@
           AND create_time &lt;= #{deadlineTime}
     </update>
 
-    <!-- Query by payment IDs and time range -->
-    <select id="getPayOrderInfosByPaymentIds" resultMap="PayOrderResultMap">
+    <resultMap id="PaymentAmountAggResultMap" type="com.pakgopay.mapper.dto.PaymentAmountAggDto">
+        <result property="paymentId" column="payment_id"/>
+        <result property="dayAmount" column="day_amount"/>
+        <result property="monthAmount" column="month_amount"/>
+    </resultMap>
+
+    <select id="sumPayAmountByPaymentIds" resultMap="PaymentAmountAggResultMap">
         SELECT
-        <include refid="BaseColumns"/>
+            payment_id,
+            COALESCE(SUM(
+                CASE
+                    WHEN create_time &gt;= #{dayStartTime}
+                        AND create_time &lt; #{nextDayStartTime}
+                    THEN amount
+                    ELSE 0
+                END
+            ), 0) AS day_amount,
+            COALESCE(SUM(amount), 0) AS month_amount
         FROM pay_order
         <where>
-            <if test="paymentIds == null or paymentIds.isEmpty()">
-                1 = 0
-            </if>
             <if test="paymentIds != null and !paymentIds.isEmpty()">
                 payment_id IN
                 <foreach collection="paymentIds" item="pid" open="(" close=")" separator=",">
                     #{pid}
                 </foreach>
-                <if test="startTime != null">
-                    AND create_time &gt;= #{startTime}
-                </if>
-                <if test="endTime != null">
-                    AND create_time &lt; #{endTime}
-                </if>
             </if>
+            <if test="paymentIds == null or paymentIds.isEmpty()">
+                AND 1 = 0
+            </if>
+            AND create_time &gt;= #{monthStartTime}
+            AND create_time &lt;  #{nextMonthStartTime}
         </where>
+        GROUP BY payment_id
     </select>
 
     <sql id="CommonReportAggColumns">
