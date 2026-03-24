@@ -780,6 +780,7 @@ public class WebhookController {
             request.setTransactionNo(transactionNo);
             request.setMerchantNo(merchantNo);
             request.setStatus(status);
+            request.setRemark(remark);
             request.setUserName("telegram:" + fromUserId + "|remark:" + remark);
             if ("c".equals(type)) {
                 collectionOrderService.manualHandleNotify(request);

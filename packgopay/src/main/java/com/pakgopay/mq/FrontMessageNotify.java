@@ -2,14 +2,13 @@ package com.pakgopay.mq;
 
 import com.google.gson.Gson;
 import com.pakgopay.service.common.NotificationService;
-import com.rabbitmq.client.*;
+import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Slf4j
-public class FrontMessageNotify implements ChannelAwareMessageListener {
+public class FrontMessageNotify {
 
     @Autowired
     private NotificationService notificationService;
@@ -36,16 +35,6 @@ public class FrontMessageNotify implements ChannelAwareMessageListener {
         com.pakgopay.data.entity.Message localMessage = gson.fromJson(messageStr, com.pakgopay.data.entity.Message.class);
         log.info("get user-notify message:"+new String(body));
         notificationService.broadcastMessage(localMessage);
-    }
-
-    @Override
-    public void onMessage(Message message, Channel channel) throws Exception {
-        byte[] body = message.getBody();
-        String messageStr =  new String(body);
-        Gson gson = new Gson();
-        com.pakgopay.data.entity.Message localMessage = gson.fromJson(messageStr, com.pakgopay.data.entity.Message.class);
-        log.info("接收到广播消息:"+new String(body));
-        notificationService.broadcastMessage(localMessage);
-        /*System.out.println(new Date() + "You get it" + messageStr);*/
+        channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
     }
 }
